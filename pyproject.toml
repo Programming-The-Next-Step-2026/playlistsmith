@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["playlistsmith"]
+
+[project]
+name = "playlistsmith"
+version = "0.0.1"
+authors = [
+  { name="Julian Wuth", email="julian.wuth@yahoo.de" },
+]
+description = "Package to create playlists from track lists."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/Programming-The-Next-Step-2026/playlistsmith"
+Issues = "https://github.com/Programming-The-Next-Step-2026/playlistsmith/issues"
