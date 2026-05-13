@@ -3,7 +3,7 @@ requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["playlistsmith"]
+packages = ["src/playlistsmith"]
 
 [project]
 name = "playlistsmith"
@@ -18,6 +18,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
 
 [project.urls]
 Homepage = "https://github.com/Programming-The-Next-Step-2026/playlistsmith"
