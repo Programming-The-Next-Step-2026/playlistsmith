@@ -31,6 +31,7 @@ dev = [
     "mypy",
     "pytest",
     "pytest-httpx",
+    "pytest-cov",
 ]
 
 [project.urls]

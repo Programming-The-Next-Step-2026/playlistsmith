@@ -5,6 +5,7 @@
 **/__pycache__/
 .mypy_cache/
 .pytest_cache/
+.coverage
 
 # CSV track lists: ignore all by default so a real personal Spotify/Exportify
 # export can't be committed by accident. The synthetic test fixture is the
