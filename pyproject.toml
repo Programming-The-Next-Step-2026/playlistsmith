@@ -20,7 +20,21 @@ classifiers = [
 ]
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
+dependencies = [
+    "pandas",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pandas-stubs",
+    "mypy",
+    "pytest",
+]
 
 [project.urls]
 Homepage = "https://github.com/Programming-The-Next-Step-2026/playlistsmith"
 Issues = "https://github.com/Programming-The-Next-Step-2026/playlistsmith/issues"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -36,3 +36,6 @@ The project can be devided into several overarching steps:
         - Output visualisation (e.g., interactive inspection of clusters)
         - Option to add playlists to account
 
+## Disclaimer
+This project is not affiliated with, sponsored by, or endorsed by Exportify or Spotify. These names are used only to describe compatible input formats and data sources.
+
