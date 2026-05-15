@@ -22,6 +22,7 @@ license = "MIT"
 license-files = ["LICEN[CS]E*"]
 dependencies = [
     "pandas",
+    "httpx",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,7 @@ dev = [
     "pandas-stubs",
     "mypy",
     "pytest",
+    "pytest-httpx",
 ]
 
 [project.urls]

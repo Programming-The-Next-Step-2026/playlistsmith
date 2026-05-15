@@ -13,8 +13,12 @@ artist name(s), and the bare Spotify track ID (parsed out of the
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from playlistsmith.features import CoverageReport
 
 # Source column headers as written by Exportify (semicolon-delimited CSV).
 _SRC_TRACK_NAME = "Track Name"
@@ -41,6 +45,18 @@ class TrackLibrary:
 
     Attributes:
         source_path: Path to the CSV file this library was loaded from.
+
+    Examples:
+        >>> import playlistsmith as ps
+        >>> tlib = ps.TrackLibrary("./tests/example_tracklist.csv")
+        >>> print(tlib)
+        TrackLibrary(source_path='tests/example_tracklist.csv', tracks=3)
+
+        >>> tlib.display()
+                       title                        artist               spotify_id
+        0  Synthetic Sunrise              The Placeholders  test0000000000000000001
+        1        Mock Anthem  Sample Collective, Dummy Vox  test0000000000000000002
+        2  Placeholder Pulse                   Test Signal  test0000000000000000003
     """
 
     def __init__(self, csv_path: str | Path) -> None:
@@ -133,22 +149,39 @@ class TrackLibrary:
         """
         print(self._tracks.to_string(max_rows=max_rows))
 
-    def extract_features(self) -> pd.DataFrame:
+    def extract_features(self, mode: str = "precomputed") -> tuple[pd.DataFrame, CoverageReport]:
         """Compute audio features for the tracks in this library.
 
-        Not implemented yet. This will delegate to the ``features.extract``
-        entry point (the single supported way to obtain features) rather than
-        calling internal feature modules directly.
-
+        Delegates to the :func:`playlistsmith.features.extract` entry point
+        (the single supported way to obtain features) in ``precomputed``
+        mode rather than calling internal feature modules directly. Tracks
+        with no precomputed features are dropped and reported.
+        
+        Args:
+            mode: The feature extraction mode to use. See
+                :func:`playlistsmith.features.extract` for supported modes.
+        
         Returns:
-            A feature DataFrame indexed to the tracks in this library.
-
-        Raises:
-            NotImplementedError: Always, until feature extraction is wired up.
+            A ``(features_df, coverage)`` tuple: a feature DataFrame with
+            one row per resolved track, and a
+            :class:`~playlistsmith.features.CoverageReport` describing what
+            was resolved and what was dropped.
+        
+        Examples:
+            >>> import playlistsmith as ps
+            >>> tlib = ps.TrackLibrary("./tests/example_tracklist.csv")
+            >>> features, coverage = tlib.extract_features(mode="precomputed")
+            >>> print(coverage.dropped_tracks) # all dropped because of synthetic IDs
+                            spotify_id              title                        artist
+            0  test0000000000000000001  Synthetic Sunrise              The Placeholders
+            1  test0000000000000000002        Mock Anthem  Sample Collective, Dummy Vox
+            2  test0000000000000000003  Placeholder Pulse                   Test Signal
         """
-        raise NotImplementedError(
-            "Feature extraction is not implemented yet."
-        )
+        # Imported lazily to avoid an import cycle (the features package
+        # reads this module's column names).
+        import playlistsmith.features as features
+
+        return features.extract(self.dataframe, mode=mode)
 
     def __len__(self) -> int:
         """Number of tracks in the library."""

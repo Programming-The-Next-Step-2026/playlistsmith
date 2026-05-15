@@ -143,11 +143,28 @@ def test_display_none_prints_all_rows(
     assert all(f"Song {i}" in out for i in range(10))
 
 
-def test_extract_features_not_implemented() -> None:
-    """The feature-extraction stub raises NotImplementedError."""
+def test_extract_features_delegates_to_features_extract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """extract_features() routes through features.extract (precomputed)."""
+    import playlistsmith.features as features
+
+    captured: dict[str, object] = {}
+    sentinel = ("FRAME", "COVERAGE")
+
+    def fake_extract(tracks: object, mode: str) -> tuple[str, str]:
+        captured["columns"] = list(tracks.columns)  # type: ignore[attr-defined]
+        captured["mode"] = mode
+        return sentinel
+
+    monkeypatch.setattr(features, "extract", fake_extract)
+
     lib = TrackLibrary(EXAMPLE_CSV)
-    with pytest.raises(NotImplementedError):
-        lib.extract_features()
+    result = lib.extract_features()
+
+    assert result == sentinel
+    assert captured["mode"] == "precomputed"
+    assert captured["columns"] == [TITLE, ARTIST, SPOTIFY_ID]
 
 
 def test_repr_includes_source_and_count() -> None:
