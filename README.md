@@ -1,41 +1,125 @@
 # Playlistsmith
-This project is about creating a package (and associated GUI) that allows users to provide a list of songs which is then split into playlists based on song features. 
 
-## Brief Summary
-Overall, the package is supposed to provide a user-friendly, automated way to create playlists of similar songs given an unsorted track list. It is motivated by my own habit of just putting every song I liked once into a single playlist. Over the years, this playlist has become huge and manually splitting it into sub-playlists is just unfeasible.
+Content-based clustering and recommendation for music libraries. You hand
+Playlistsmith a CSV track list; it computes audio features for those tracks,
+clusters them by sound, and writes one playlist CSV per cluster.
 
-Hopefully, this package will make this task easy and accessible not only to me but most of all other users.
+## Motivation
 
-## Step-By-Step Overview
-The project can be devided into several overarching steps:
+This package grew out of my own habit of dumping every song I ever liked into a
+single, ever-growing playlist. Splitting that by hand is hopeless. Playlistsmith
+is meant to make "turn this pile of tracks into a set of coherent playlists"
+automatic — for me, and for anyone else with the same problem.
 
-1. Standardized input format 
-    - The package requires some standardized input for the track lists/playlists. (artist, track) pairs seem like a reasonable choice.
-    - To make the package more user-friendly, I am planning to find a way to extract these pairs from, for example, Spotify or other platforms. However, this entails implementing user authentification and some legal considerations that I need to take into account ([see here](https://developer.spotify.com/terms#section-iv-restrictions)).
+## How it works
 
-2. Obtain features from songs
-    - Next, I need to implement some way to obtain song features. The features form the basis for the classification into playlists.
-    - Here, it would be easiest to use an existing API (e.g., [ReccoBeats](https://reccobeats.com/)) that allows querries based on song names and artists and then returns features.
-    - Alternatively, one could access freely available 30 sec snippets of songs and then use an API for feature extraction based on these audio snippets. This, however, seems to be an extension that I can consider if there is extra time.
+### Input: a preformatted CSV
 
-3. Create playlists based on song features
-    - I am planning to use statistical techniques to assign tracks to playlists based on their features. I will start with clustering techniques (e.g., k-means).
-    - Given some extra time and access to song snippets, it would also be interesting to use a pretrained neural network that takes audio snippets as input for this classification task.
+Playlistsmith does **not** talk to Spotify, scrape it, or pull anything from
+your account. It works purely from a CSV you provide. The expected layout is
+the one produced by [Exportify](https://exportify.app) — a free, browser-based
+tool that exports a Spotify playlist to a `;`-delimited CSV. You run Exportify
+yourself and feed the resulting file in.
 
-4. Writing playlists into account
-    - Given access to a streaming account, there should be a feature to add the created playlists to the user's account.
+Only three fields are used: the track title, the artist name(s), and the bare
+Spotify track ID (parsed out of the `spotify:track:<id>` URI). Every other
+column in the export is ignored. Rows without a Spotify track ID are dropped on
+load. A synthetic, Exportify-shaped fixture (no real Spotify content) lives at
+[tests/example_tracklist.csv](tests/example_tracklist.csv).
 
-5. User-friendly GUI
-    - To make usage user-friendly and simplify presentation, all this should be implemented with a GUI.
-    - Examples for GUI elements include: 
-        - Upload track list
-        - Feature extraction (with progress bar for visual feedback)
-            - Optional: Download track snippets 
-        - Selection of clustering/machine learning algorithm to classify songs
-        - Hyperparameter tuning (e.g., k in k-means)
-        - Output visualisation (e.g., interactive inspection of clusters)
-        - Option to add playlists to account
+### Pipeline
+
+```
+CSV → io.csv_loader.TrackLibrary → features.extract(mode=...) → (features_df, CoverageReport) → [clustering] → [playlist export]
+```
+
+- **`io.csv_loader.TrackLibrary`** — loads and validates the Exportify CSV into
+  a tidy `(title, artist, spotify_id)` DataFrame.
+- **`features.extract(tracks, mode)`** — the single supported entry point for
+  feature extraction. The only mode today is `"precomputed"`: a lookup-only
+  resolution against [ReccoBeats](https://reccobeats.com/) keyed by Spotify
+  track ID (`/v1/track` → ReccoBeats ID → `/v1/audio-features`). Tracks with no
+  precomputed features are dropped, named on stdout, and counted in the
+  returned `CoverageReport`. Internal feature modules (`reccobeats`) are
+  implementation details — always go through `extract`.
+- **`_http`** — a single shared, retry/backoff/User-Agent–configured HTTP
+  client that every external API call routes through.
+
+Clustering and playlist export are the next pipeline stages and are not yet
+implemented.
+
+## Current module structure
+
+```
+src/playlistsmith/
+├── __init__.py            # re-exports the public surface (TrackLibrary)
+├── _http.py               # shared HTTP client (timeouts, retries, backoff)
+├── io/
+│   ├── __init__.py        # exposes TrackLibrary
+│   └── csv_loader.py      # TrackLibrary: Exportify CSV → tidy DataFrame
+└── features/
+    ├── __init__.py        # extract() entry point + CoverageReport
+    └── reccobeats.py      # internal: ReccoBeats "precomputed" client
+```
+
+## Usage
+
+```python
+import playlistsmith as ps
+
+# Load an Exportify-format CSV.
+library = ps.TrackLibrary("./tests/example_tracklist.csv")
+print(library)                       # TrackLibrary(source_path='...', tracks=3)
+library.display()                    # pretty-print the parsed tracks
+
+# Resolve precomputed audio features via ReccoBeats.
+features, coverage = library.extract_features(mode="precomputed")
+print(coverage)                      # "Feature coverage: N/M track(s) resolved ..."
+print(coverage.dropped_tracks)       # tracks with no precomputed features
+```
+
+## Installation (local / development)
+
+Playlistsmith targets **Python 3.12**. From the repository root, install the
+package in editable mode together with the development extras (test and type
+tooling):
+
+```bash
+pip install -e ".[dev]"
+```
+
+The `[dev]` extra pulls in `pytest`, `pytest-httpx`, `pytest-cov`, `mypy`, and
+`pandas-stubs` on top of the runtime dependencies (`pandas`, `httpx`).
+
+## Running the tests
+
+The test suite is configured via `pyproject.toml` (`pythonpath = ["src"]`,
+`testpaths = ["tests"]`), so a bare `pytest` from the repo root finds and runs
+everything:
+
+```bash
+pytest
+```
+
+All external HTTP is mocked with `pytest-httpx`; the tests never touch a live API.
+
+To type-check the package:
+
+```bash
+mypy src/
+```
+
+## Test coverage diagnostics
+
+Coverage is measured with `pytest-cov`. For a terminal report that also lists the specific lines not covered:
+
+```bash
+pytest --cov=playlistsmith --cov-report=term-missing
+```
 
 ## Disclaimer
-This project is not affiliated with, sponsored by, or endorsed by Exportify or Spotify. These names are used only to describe compatible input formats and data sources.
 
+This project is not affiliated with, sponsored by, or endorsed by Exportify,
+ReccoBeats, or Spotify. These names are used only to describe compatible input
+formats and data sources. No Spotify-derived audio features ever enter the
+clustering or recommendation pipeline.
