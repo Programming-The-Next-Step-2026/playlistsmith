@@ -12,4 +12,10 @@
 # only CSV that belongs in the repo, so it is explicitly re-included.
 *.csv
 !tests/example_tracklist.csv
+!docs/example_synthetic.csv
 
+# venv 
+.venv/
+
+# implementation plans
+plans/

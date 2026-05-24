@@ -21,7 +21,11 @@ classifiers = [
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
 dependencies = [
+    "numpy",
     "pandas",
+    "scikit-learn",
+    "scipy",
+    "umap-learn",
     "httpx",
 ]
 
@@ -41,3 +45,7 @@ Issues = "https://github.com/Programming-The-Next-Step-2026/playlistsmith/issues
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "umap", "umap.*"]
+ignore_missing_imports = true
