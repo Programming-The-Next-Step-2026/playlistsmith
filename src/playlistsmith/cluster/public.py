@@ -77,6 +77,13 @@ class ClusterDiagnostics:
             ``dim2``. UMAP is the MIR standard (plan §6).
         projection_method: Which projection produced ``projection_2d``
             (``"umap"`` here; ``"tsne"`` if we ever fall back).
+        projection_3d: ``(n_tracks × 3)`` PCA-3D embedding for the
+            optional 3-D scatter (plan §6.2). Row-aligned with
+            ``tracks``; columns ``pc1``, ``pc2``, ``pc3``. Fit on the
+            same z-scored modelling matrix used for clustering, so it
+            shares the axes the model actually saw. ``None`` when the
+            modelling matrix has fewer than three columns or rows (the
+            GUI greys the 3-D toggle out in that case).
         zprofile_heatmap: ``(n_clusters × n_features)`` z-profile
             frame indexed by cluster id (including ``-1`` for the
             Unclassified bucket if present). Columns are the canonical
@@ -88,6 +95,7 @@ class ClusterDiagnostics:
     projection_2d: pd.DataFrame
     projection_method: str
     zprofile_heatmap: pd.DataFrame
+    projection_3d: pd.DataFrame | None = None
 
 
 @dataclass
@@ -359,12 +367,23 @@ def _build_diagnostics(
         heatmap_rows, index=final_ids, columns=list(FEATURE_COLUMNS)
     )
 
+    # 3-D PCA toggle (plan §6.2). Reuses the PCA fit above so the 3-D
+    # coordinates share the axes the canonical-ordering tiebreak uses.
+    projection_3d: pd.DataFrame | None
+    if n_components >= 3:
+        pca_3d = pca_df.iloc[:, :3].copy()
+        pca_3d.columns = ["pc1", "pc2", "pc3"]
+        projection_3d = pca_3d
+    else:
+        projection_3d = None
+
     return ClusterDiagnostics(
         pca_components=pca_df,
         pca_explained_variance_ratio=[float(x) for x in pca.explained_variance_ratio_],
         projection_2d=projection_2d,
         projection_method="umap",
         zprofile_heatmap=heatmap,
+        projection_3d=projection_3d,
     )
 
 

@@ -62,6 +62,35 @@ def test_rows_without_spotify_id_are_dropped(tmp_path: Path) -> None:
     assert lib.dataframe.loc[0, SPOTIFY_ID] == "keep"
 
 
+def test_comma_delimited_exportify_csv_loads(tmp_path: Path) -> None:
+    """Modern Exportify exports use commas; the loader must accept them.
+
+    Triggered by a real upload that failed with ``Error tokenizing data.
+    C error: Expected 1 fields in line N, saw 2`` — pandas was reading
+    the comma-delimited file as a one-column CSV because the loader
+    hard-coded ``sep=';'``.
+    """
+    csv = tmp_path / "comma.csv"
+    csv.write_text(
+        "Track URI,Track Name,Artist Name(s)\n"
+        # Track Name contains a literal semicolon to make sure quoting is
+        # round-tripped correctly when the delimiter is a comma — a real
+        # in-the-wild file we saw had a title like this and broke loading.
+        '"spotify:track:syn0000000000000000001","STUB ANTHEM; PART ONE","The Placeholders"\n'
+        '"spotify:track:syn0000000000000000002","Mock Anthem","Sample Collective, Dummy Vox"\n',
+        encoding="utf-8",
+    )
+    lib = TrackLibrary(csv)
+    df = lib.dataframe
+
+    assert len(lib) == 2
+    assert df.loc[0, TITLE] == "STUB ANTHEM; PART ONE"
+    assert df.loc[0, ARTIST] == "The Placeholders"
+    assert df.loc[0, SPOTIFY_ID] == "syn0000000000000000001"
+    # Multi-artist string with an embedded comma is preserved verbatim.
+    assert df.loc[1, ARTIST] == "Sample Collective, Dummy Vox"
+
+
 def test_missing_file_raises_file_not_found() -> None:
     """A non-existent path raises FileNotFoundError."""
     with pytest.raises(FileNotFoundError):

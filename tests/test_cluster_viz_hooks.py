@@ -143,6 +143,19 @@ def test_projection_method_is_recorded() -> None:
     assert out.diagnostics.projection_method in {"tsne", "umap"}
 
 
+def test_projection_3d_is_n_by_3() -> None:
+    """The 3-D scatter (plan §6.2) needs three PCA coordinates per track,
+    row-aligned with the tracks frame."""
+    features = _synthetic_features()
+
+    out = cluster(features, random_state=0, k_range=range(2, 5))
+
+    proj = out.diagnostics.projection_3d
+    assert proj is not None
+    assert proj.shape == (len(out.tracks), 3)
+    assert list(proj.columns) == ["pc1", "pc2", "pc3"]
+
+
 # --------------------------------------------------------------------------- #
 # Heatmap frame                                                               #
 # --------------------------------------------------------------------------- #

@@ -37,6 +37,14 @@ dev = [
     "pytest-httpx",
     "pytest-cov",
 ]
+gui = [
+    "streamlit>=1.33",
+    "plotly>=5.18",
+    "matplotlib",
+]
+
+[project.scripts]
+playlistsmith-gui = "playlistsmith.gui:main"
 
 [project.urls]
 Homepage = "https://github.com/Programming-The-Next-Step-2026/playlistsmith"
@@ -46,6 +54,17 @@ Issues = "https://github.com/Programming-The-Next-Step-2026/playlistsmith/issues
 pythonpath = ["src"]
 testpaths = ["tests"]
 
+[tool.mypy]
+exclude = ["src/playlistsmith/gui/"]
+
 [[tool.mypy.overrides]]
 module = ["sklearn.*", "umap", "umap.*"]
 ignore_missing_imports = true
+
+# The GUI subpackage is a thin Streamlit shell and pulls in untyped
+# third-party libraries (plotly, parts of streamlit). It's excluded from
+# the strict mypy run via `tool.mypy.exclude` above; this override also
+# silences mypy if the exclusion is bypassed (e.g. `mypy <file>`).
+[[tool.mypy.overrides]]
+module = ["playlistsmith.gui.*"]
+ignore_errors = true
