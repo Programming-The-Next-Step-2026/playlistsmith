@@ -92,14 +92,41 @@ class TrackLibrary:
         if not path.is_file():
             raise FileNotFoundError(f"Exportify CSV not found: {path}")
 
-        raw = pd.read_csv(path, sep=";", dtype=str)
-
+        # Exportify has shipped both comma- and semicolon-delimited exports
+        # over its lifetime (locale-dependent). Try each in turn rather
+        # than guessing from the file extension or sniffing — sniff has
+        # bitten us on files with semicolons inside quoted artist names.
+        raw: pd.DataFrame | None = None
+        last_error: Exception | None = None
         required = [_SRC_TRACK_NAME, _SRC_ARTIST_NAME, _SRC_TRACK_URI]
+        for sep in (",", ";"):
+            try:
+                candidate = pd.read_csv(path, sep=sep, dtype=str)
+            except pd.errors.ParserError as exc:
+                last_error = exc
+                continue
+            if all(col in candidate.columns for col in required):
+                raw = candidate
+                break
+            # All required columns missing means we likely picked the wrong
+            # delimiter and ended up with a single fat column; keep trying.
+        if raw is None:
+            if last_error is not None:
+                raise ValueError(
+                    f"Could not parse {path.name} as CSV with comma or "
+                    f"semicolon delimiters: {last_error}"
+                )
+            raise ValueError(
+                "CSV is missing required column(s): "
+                f"{', '.join(required)}. "
+                "Is this an Exportify export?"
+            )
+
         missing = [col for col in required if col not in raw.columns]
         if missing:
             raise ValueError(
                 f"CSV is missing required column(s): {', '.join(missing)}. "
-                "Is this an Exportify export? Expected a ';'-delimited file."
+                "Is this an Exportify export?"
             )
 
         tracks = pd.DataFrame(

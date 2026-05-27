@@ -100,6 +100,21 @@ class HTTPClientError(RuntimeError):
 _client: httpx.Client | None = None
 
 
+def set_client(client: httpx.Client | None) -> None:
+    """Replace (or clear) the process-wide shared HTTP client.
+
+    Used by demo mode and the test suite to swap the live client for one
+    backed by an :class:`httpx.MockTransport`. Passing ``None`` clears
+    the singleton; the next :func:`get_client` call will build a fresh
+    default client.
+
+    Args:
+        client: The new client to install, or ``None`` to reset.
+    """
+    global _client
+    _client = client
+
+
 def get_client() -> httpx.Client:
     """Return the process-wide shared HTTP client, creating it on first use.
 

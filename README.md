@@ -44,9 +44,10 @@ CSV → io.csv_loader.TrackLibrary → features.extract(mode=...) → (features_
   implementation details — always go through `extract`.
 - **`_http`** — a single shared, retry/backoff/User-Agent–configured HTTP
   client that every external API call routes through.
-
-Clustering and playlist export are the next pipeline stages and are not yet
-implemented.
+- **`cluster`** — preprocessing, model fitting (K-means / GMM / HDBSCAN with
+  BIC- and silhouette-based selection), and cluster interpretation.
+- **`io.playlist_export`** — writes one CSV per cluster, preserving the
+  original Exportify columns so the output is round-trippable.
 
 ## Current module structure
 
@@ -56,27 +57,97 @@ src/playlistsmith/
 ├── _http.py               # shared HTTP client (timeouts, retries, backoff)
 ├── io/
 │   ├── __init__.py        # exposes TrackLibrary
-│   └── csv_loader.py      # TrackLibrary: Exportify CSV → tidy DataFrame
-└── features/
-    ├── __init__.py        # extract() entry point + CoverageReport
-    └── reccobeats.py      # internal: ReccoBeats "precomputed" client
+│   ├── csv_loader.py      # TrackLibrary: Exportify CSV → tidy DataFrame
+│   └── playlist_export.py # write one CSV per cluster
+├── features/
+│   ├── __init__.py        # extract() entry point + CoverageReport
+│   └── reccobeats.py      # internal: ReccoBeats "precomputed" client
+├── cluster/
+│   ├── __init__.py        # public cluster API
+│   ├── preprocess.py      # feature scaling / preparation
+│   ├── algorithms.py      # KMeans / GMM / HDBSCAN fitting + selection
+│   ├── interpret.py       # per-cluster summaries
+│   └── public.py          # high-level cluster_tracks(...) entry point
+└── gui/
+    ├── __init__.py        # exposes the playlistsmith-gui entry point
+    ├── app.py             # Streamlit single-page app
+    ├── cli.py             # console-script launcher (--demo flag)
+    ├── state.py           # session-state keys + reset helpers
+    ├── fixtures.py        # offline ReccoBeats mock transport
+    └── widgets/           # upload / extract / cluster / viz / export panels
 ```
 
 ## Usage
 
+### Python API
+
+The example below runs the full pipeline offline against the bundled
+synthetic Exportify CSV at [docs/example_synthetic.csv](docs/example_synthetic.csv).
+Installing the GUI's mock transport reroutes every ReccoBeats call to a
+deterministic in-process handler, so no network access is required:
+
 ```python
 import playlistsmith as ps
+from playlistsmith.gui import fixtures
+from playlistsmith.io import playlist_export
 
-# Load an Exportify-format CSV.
-library = ps.TrackLibrary("./tests/example_tracklist.csv")
-print(library)                       # TrackLibrary(source_path='...', tracks=3)
+# 0. Install the offline ReccoBeats mock. Every call routed through
+#    playlistsmith._http now returns deterministic synthetic features
+#    for `syn<letter><digits>` IDs (no network).
+fixtures.install_mock_transport()
+
+# 1. Load the bundled synthetic Exportify-format CSV.
+library = ps.TrackLibrary("./docs/example_synthetic.csv")
+print(library)                       # TrackLibrary(source_path='...', tracks=...)
 library.display()                    # pretty-print the parsed tracks
 
-# Resolve precomputed audio features via ReccoBeats.
+# 2. Resolve precomputed audio features (served by the mock).
 features, coverage = library.extract_features(mode="precomputed")
 print(coverage)                      # "Feature coverage: N/M track(s) resolved ..."
 print(coverage.dropped_tracks)       # tracks with no precomputed features
+
+# 3. Cluster. Defaults: GMM with BIC-based k selection, canonical
+#    cluster ordering, and small clusters collapsed into an
+#    Unclassified bucket (cluster id -1).
+result = ps.cluster(features, method="gmm", random_state=0)
+print(result.tracks.head())          # per-track: spotify_id, title, artist, cluster, cluster_summary
+print(result.descriptions)           # per-cluster: size, top_features, cluster_summary
+for w in result.warnings:            # e.g. dominant-cluster notices
+    print(w)
+
+# 4. Export one Exportify-shaped CSV per cluster (round-trippable
+#    back into Spotify via any Exportify-compatible import flow).
+paths = playlist_export.write_cluster_csvs(
+    result,
+    output_dir="./playlists",
+    features_df=features,            # optional: merge audio features into each CSV
+)
+print(paths)                         # [PosixPath('playlists/cluster_0.csv'), ...]
 ```
+
+To run against real data instead, drop the `fixtures.install_mock_transport()`
+call and point `TrackLibrary` at your own Exportify CSV — every other
+step is identical.
+
+### GUI
+
+A Streamlit front-end walks through the same pipeline interactively
+(Upload → Extract → Cluster → Visualize → Export). It is a thin shell —
+every action maps to one public call into the package.
+
+Install the GUI extras and launch the console script:
+
+```bash
+pip install -e ".[gui]"
+playlistsmith-gui              # live mode (real ReccoBeats lookups)
+playlistsmith-gui --demo       # offline mode (recorded ReccoBeats fixture, no network)
+```
+
+Use `--demo` to try the app without an internet connection or while
+iterating on the UI; it installs a mock HTTP transport so the entire
+pipeline runs against a deterministic synthetic dataset. Any extra
+arguments after the flag are forwarded to Streamlit (e.g.
+`playlistsmith-gui -- --server.port 8502`).
 
 ## Installation (local / development)
 
@@ -90,6 +161,14 @@ pip install -e ".[dev]"
 
 The `[dev]` extra pulls in `pytest`, `pytest-httpx`, `pytest-cov`, `mypy`, and
 `pandas-stubs` on top of the runtime dependencies (`pandas`, `httpx`).
+
+To also install the Streamlit GUI (see [Usage → GUI](#gui)):
+
+```bash
+pip install -e ".[dev,gui]"
+```
+
+The `[gui]` extra adds `streamlit`, `plotly`, and `matplotlib`.
 
 ## Running the tests
 
