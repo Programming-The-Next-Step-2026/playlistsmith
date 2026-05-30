@@ -14,7 +14,12 @@ from pathlib import Path
 import streamlit as st
 
 from playlistsmith import TrackLibrary
-from playlistsmith.gui.state import KEYS, UPLOAD_IDENTITY_KEY, reset_pipeline_state
+from playlistsmith.gui.state import (
+    KEYS,
+    UPLOAD_IDENTITY_KEY,
+    UPLOAD_NONCE_KEY,
+    reset_pipeline_state,
+)
 
 #: Path to the synthetic example CSV (lives at ``docs/example_synthetic.csv``).
 #: Resolved relative to the repo root, located by walking up from this file.
@@ -56,7 +61,15 @@ def render() -> None:
         "[Exportify](https://exportify.app), then upload the file here."
     )
 
-    uploaded = st.file_uploader("Exportify CSV", type=["csv"])
+    # The nonce in the widget key lets "Reset session" detach a
+    # still-attached file: bumping it re-creates the uploader empty.
+    nonce = st.session_state.get(UPLOAD_NONCE_KEY, 0)
+    uploaded = st.file_uploader(
+        "Exportify CSV", 
+        type=["csv"], 
+        key=f"uploader_{nonce}",
+        accept_multiple_files=False,
+    )
     demo_mode = bool(st.session_state.get(KEYS.demo_mode))
 
     if demo_mode and EXAMPLE_CSV_PATH.exists():

@@ -50,7 +50,8 @@ _HELP_K_RANGE = (
     "Range of candidate cluster counts to evaluate. GMM picks the best k "
     "by BIC inside this range; K-means picks by silhouette. Wider range "
     "= more candidates evaluated (slower); narrower = faster but you "
-    "might miss the best k."
+    "might miss the best k. " "One value can be selected by dragging the "
+    "knobs on top of each other."
 )
 _HELP_HDBSCAN_MIN_CLUSTER_SIZE = (
     "Smallest group of tracks HDBSCAN is allowed to call a cluster. "

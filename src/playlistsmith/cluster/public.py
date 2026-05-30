@@ -21,6 +21,7 @@ Downstream code (``viz``, ``io.playlist_export``) should import
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 
@@ -41,6 +42,18 @@ from playlistsmith.features.reccobeats import FEATURE_COLUMNS
 from playlistsmith.io.csv_loader import ARTIST, SPOTIFY_ID, TITLE
 
 __all__ = ["ClusterDiagnostics", "ClusterPipelineResult", "cluster"]
+
+#: Serialises UMAP fits across threads. UMAP's layout optimisation runs
+#: under numba, and the only threading layer available in many installs
+#: (no ``tbb``/``omp``) is ``workqueue``, which is *not* threadsafe: two
+#: concurrent parallel regions abort the whole process with "Numba
+#: workqueue threading layer is terminating: Concurrent access has been
+#: detected." The Streamlit GUI runs each session/rerun in its own
+#: worker thread, so overlapping clustering runs would otherwise crash
+#: the app. UMAP is the only numba-parallel code in the pipeline
+#: (HDBSCAN here is scikit-learn's, pure C/Cython), so guarding the fit
+#: with one process-wide lock is sufficient.
+_UMAP_LOCK = threading.Lock()
 
 #: Cluster id reserved for tracks in playlists that were too small to
 #: be useful (and, in future, for HDBSCAN noise points).
@@ -345,7 +358,9 @@ def _build_diagnostics(
         random_state=random_state,
         n_jobs=1,
     )
-    proj_arr = reducer.fit_transform(X.to_numpy())
+    # Serialise the numba-backed fit; see _UMAP_LOCK for why.
+    with _UMAP_LOCK:
+        proj_arr = reducer.fit_transform(X.to_numpy())
     projection_2d = pd.DataFrame(proj_arr, columns=["dim1", "dim2"])
 
     # Cluster × feature heatmap. Real clusters come from describe_clusters'

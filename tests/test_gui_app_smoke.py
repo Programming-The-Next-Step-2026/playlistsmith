@@ -58,6 +58,24 @@ def _get(session_state, key):
     return session_state[key] if key in session_state else None
 
 
+def test_reset_session_clears_loaded_library(demo_app) -> None:
+    demo_app.run()
+
+    example_btn = next(
+        b for b in demo_app.button if b.label == "Load example tracklist"
+    )
+    example_btn.click().run()
+    assert _get(demo_app.session_state, KEYS.library) is not None
+
+    reset_btn = next(
+        b for b in demo_app.button if b.label == "Reset session"
+    )
+    reset_btn.click().run()
+    assert _get(demo_app.session_state, KEYS.library) is None
+    # The loaded-file success banner is gone after reset.
+    assert not any("Loaded" in s.value for s in demo_app.success)
+
+
 def test_full_pipeline_via_example_button(demo_app) -> None:
     demo_app.run()
 

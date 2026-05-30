@@ -23,7 +23,7 @@ def render() -> None:
 
     st.header("2. Extract features")
     st.caption(
-        "Look up audio features for each track via ReccoBeats "
+        "Look up audio features for each track via [ReccoBeats](https://reccobeats.com/) "
         "(`precomputed` mode). Tracks ReccoBeats does not know are "
         "dropped and listed below."
     )

@@ -55,7 +55,7 @@ def _sidebar() -> None:
         )
 
         if st.button("Reset session", use_container_width=True):
-            reset_pipeline_state(st.session_state)
+            reset_pipeline_state(st.session_state, clear_upload=True)
             st.rerun()
 
 

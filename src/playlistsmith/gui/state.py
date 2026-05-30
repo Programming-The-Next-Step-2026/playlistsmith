@@ -14,6 +14,12 @@ from dataclasses import dataclass
 #: so :func:`reset_pipeline_state` can wipe it from a central place.
 UPLOAD_IDENTITY_KEY = "_upload_identity"
 
+#: Nonce folded into the file_uploader's widget key. Bumping it gives the
+#: uploader a fresh key, so Streamlit re-creates it empty and forgets the
+#: previously-attached file. Without this, "Reset session" clears the
+#: library state but the still-attached file silently re-loads on rerun.
+UPLOAD_NONCE_KEY = "_upload_nonce"
+
 
 @dataclass(frozen=True)
 class Keys:
@@ -31,7 +37,9 @@ class Keys:
 KEYS = Keys()
 
 
-def reset_pipeline_state(session_state) -> None:  # type: ignore[no-untyped-def]
+def reset_pipeline_state(  # type: ignore[no-untyped-def]
+    session_state, *, clear_upload: bool = False
+) -> None:
     """Clear every pipeline slot in ``session_state`` except demo mode.
 
     Used by the "Reset session" button and whenever an upstream stage
@@ -41,6 +49,11 @@ def reset_pipeline_state(session_state) -> None:  # type: ignore[no-untyped-def]
 
     Args:
         session_state: The :data:`streamlit.session_state` object.
+        clear_upload: When ``True``, also detach any file currently held
+            by the ``file_uploader`` widget by bumping
+            :data:`UPLOAD_NONCE_KEY`. The "Reset session" button sets
+            this; the new-upload path leaves it ``False`` so it does not
+            wipe the file the user just attached.
     """
     for key in (
         KEYS.library,
@@ -53,3 +66,7 @@ def reset_pipeline_state(session_state) -> None:  # type: ignore[no-untyped-def]
     ):
         if key in session_state:
             del session_state[key]
+    if clear_upload:
+        session_state[UPLOAD_NONCE_KEY] = (
+            session_state.get(UPLOAD_NONCE_KEY, 0) + 1
+        )
