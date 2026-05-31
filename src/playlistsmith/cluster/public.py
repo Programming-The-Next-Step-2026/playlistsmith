@@ -453,12 +453,40 @@ def cluster(
             Other strings raise ``ValueError``.
         random_state: Seed threaded through preprocessing-independent
             stochastic steps (the GMM fit and its stability re-fit).
-        min_playlist_size: Clusters with fewer than this many tracks
-            are collapsed into the Unclassified bucket (cluster id
-            ``-1``). Defaults to ``5``.
+        min_playlist_size: Post-processing floor applied to *every*
+            method, *after* clustering finishes: any cluster with fewer
+            than this many tracks is collapsed wholesale into the
+            Unclassified bucket (cluster id ``-1``). It only thresholds
+            and relabels — it never reshapes the clusters it keeps.
+            Governs output usability ("how small a playlist is too small
+            to bother exporting"), as opposed to
+            ``hdbscan_min_cluster_size``, which governs cluster discovery
+            inside the HDBSCAN fit. For an HDBSCAN run both apply in
+            sequence, so the effective floor on a surviving playlist is
+            the larger of the two. Defaults to ``5``.
         max_playlist_share: If any cluster holds more than this share
             of the library, a warning is emitted (no auto-split).
         k_range: Candidate ``k`` values for GMM model selection.
+        hdbscan_min_cluster_size: Smallest group of tracks HDBSCAN is
+            allowed to call a cluster (``method="hdbscan"`` only). Unlike
+            ``min_playlist_size``, this acts *during* the fit and governs
+            cluster discovery: it shapes which groups HDBSCAN forms in the
+            first place (raising it changes which merges happen, so the
+            surviving clusters can be reshaped, not just pruned). ``None``
+            (the default) uses ``max(5, n_tracks // 50)``. Raise it for
+            fewer, larger playlists and more Unclassified outliers; lower
+            it to surface smaller niches. Ignored by the GMM and K-means
+            methods, which take a cluster *count* via ``k_range`` instead.
+        hdbscan_min_samples: HDBSCAN's "anti-noise shield" — the number
+            of close neighbours a track must have before it counts as a
+            *core point* that can seed a cluster (``method="hdbscan"``
+            only). Think of it as how big a crowd a track needs around it
+            to be allowed to start a playlist: higher values make the
+            algorithm more conservative, so more loosely-grouped tracks are
+            left as noise and routed to the Unclassified bucket; lower
+            values are more permissive and produce fewer outliers. ``None``
+            (the default) falls back to ``hdbscan_min_cluster_size``.
+            Ignored by the GMM and K-means methods.
 
     Returns:
         A :class:`ClusterPipelineResult` with per-track labels, per-

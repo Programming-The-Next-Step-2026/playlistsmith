@@ -38,7 +38,12 @@ _HELP_MIN_PLAYLIST_SIZE = (
     "Smallest size a final cluster is allowed to keep. Clusters smaller "
     "than this are collapsed into the **Unclassified** bucket (cluster "
     "-1) so you don't end up with two-track playlists. Raise it to force "
-    "larger, fewer playlists; lower it to keep small niche groups."
+    "larger, fewer playlists; lower it to keep small niche groups.\n\n"
+    "Applies to **every** method, *after* clustering finishes — it only "
+    "drops clusters that are too small, it never reshapes the ones it "
+    "keeps. (Contrast `hdbscan_min_cluster_size`, which shapes which "
+    "clusters form *during* the HDBSCAN fit. With HDBSCAN both apply, so "
+    "the smallest surviving playlist is the larger of the two.)"
 )
 _HELP_MAX_PLAYLIST_SHARE = (
     "Maximum share of the library any one cluster is allowed to hold "
@@ -57,12 +62,21 @@ _HELP_HDBSCAN_MIN_CLUSTER_SIZE = (
     "Smallest group of tracks HDBSCAN is allowed to call a cluster. "
     "Raise it to get fewer, larger clusters and more Unclassified "
     "outliers; lower it to discover smaller niches at the cost of more "
-    "fragmentation."
+    "fragmentation.\n\n"
+    "Acts *during* the fit and shapes which clusters form in the first "
+    "place — not just whether small ones survive. (Contrast "
+    "`min_playlist_size`, the after-the-fit floor that applies to every "
+    "method. With HDBSCAN both apply, so the smallest surviving playlist "
+    "is the larger of the two.)"
 )
 _HELP_HDBSCAN_MIN_SAMPLES = (
-    "How conservative HDBSCAN is about declaring core points. Higher "
-    "values produce more outliers (Unclassified) and more conservative "
-    "clusters. 0 means \"use the library default\" (= min_cluster_size)."
+    "Think of this as an **anti-noise shield**: how many close neighbours "
+    "a track needs around it before it's allowed to help start a cluster "
+    "(a \"core point\"). Higher values mean a track needs a bigger crowd "
+    "nearby, so HDBSCAN is more conservative — more loosely-grouped tracks "
+    "are left as noise and routed to **Unclassified**. Lower values are "
+    "more permissive and produce fewer outliers. 0 means \"use the library "
+    "default\" (= min_cluster_size)."
 )
 
 
