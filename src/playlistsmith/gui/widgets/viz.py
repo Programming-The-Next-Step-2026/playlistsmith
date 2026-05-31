@@ -20,6 +20,23 @@ _UNCLASSIFIED_LABEL = -1
 _UNCLASSIFIED_COLOR = "#999999"
 _UNCLASSIFIED_LEGEND = "Unclassified"
 
+#: Plain-language explanation of each projection, shown as the radio tooltip.
+_PROJECTION_HELP = (
+    "Both views squash the many audio features down to a few dimensions so "
+    "the library fits on a chart — they don't change the clustering.\n\n"
+    "**UMAP (2-D)**: lays tracks out so that songs that sound similar sit "
+    "close together. Great for *seeing* the clusters, but distances and "
+    "directions on the chart aren't literal.\n\n"
+    "**PCA (3-D)**: rotates the data to the three axes that capture the most "
+    "variation between tracks. More faithful to real distances, and each "
+    "axis carries a measurable share of the variance."
+)
+#: Appended to the tooltip when the 3-D view is unavailable.
+_PROJECTION_HELP_NO_3D = (
+    "\n\n_PCA-3D needs at least three feature columns; this library is too "
+    "small, so only UMAP is available._"
+)
+
 
 def _cluster_label(cluster_id: int) -> str:
     """Pretty cluster label used both in legend keys and color mapping."""
@@ -121,11 +138,7 @@ def render() -> None:
         view_options,
         index=0,
         horizontal=True,
-        help=(
-            None
-            if has_3d
-            else "PCA-3D needs at least three feature columns; this library is too small."
-        ),
+        help=_PROJECTION_HELP if has_3d else _PROJECTION_HELP + _PROJECTION_HELP_NO_3D,
     )
 
     if view == "UMAP (2-D)":
