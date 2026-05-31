@@ -1,9 +1,24 @@
 """Clustering algorithms for the playlistsmith pipeline.
 
-The default clusterer is a Gaussian Mixture Model (``CLAUDE.md``:
-"prefer ``GaussianMixture`` over ``KMeans`` for soft cluster assignment;
-use BIC for model selection"). K-Means and HDBSCAN are documented as
-alternatives in the plan and will be added as follow-ups.
+The default clustering algorithm is a Gaussian Mixture Model. K-Means and HDBSCAN are offered as
+alternatives. All three are exposed in the GUI method selector.
+
+Methods
+-------
+- **GMM** (:func:`fit_gmm`, default) — soft, probabilistic assignments;
+  ``k`` is chosen by BIC with an ICL cross-check. Each track gets a
+  posterior over clusters rather than a single hard label. Best for
+  libraries with overlapping content.
+- **K-Means** (:func:`fit_kmeans`) — hard partition into tight,
+  roughly equal-sized blobs; ``k`` is chosen by silhouette–Calinski–
+  Harabasz agreement. Faster than GMM and yields no posteriors. Good
+  when clusters are well separated, and the small-library fallback when
+  GMM covariance is under-determined.
+- **HDBSCAN** (:func:`fit_hdbscan`) — density-based, takes no ``k``.
+  Discovers the cluster count from the data and routes low-density
+  outliers to noise (label ``-1``) instead of forcing them into a
+  cluster. Best when some tracks genuinely shouldn't belong to any
+  playlist.
 
 References
 ----------
@@ -36,7 +51,6 @@ __all__ = ["ClusteringResult", "fit_gmm", "fit_hdbscan", "fit_kmeans"]
 
 #: Library size at and above which we trust ``covariance_type='full'``.
 #: Below this, GMM full covariance is under-determined on nine features
-#: (plan Section 1 step 5; statistical caveat in Section 7).
 _FULL_COVARIANCE_MIN_TRACKS: int = 50
 
 #: Kass–Raftery (1995) strong-evidence threshold on ΔBIC: a larger ``k``
@@ -52,20 +66,10 @@ _POSTERIOR_LOG_FLOOR: float = 1e-12
 class ClusteringResult:
     """Outcome of a clustering fit.
 
-    Fields match the contract in
-    ``plans/clustering_analysis_revised.md`` Section 1. Two additions:
-
-    - ``covariance_type`` is reused as a *model-variant* marker so
-      callers can tell GMM-full / GMM-diag / K-Means / HDBSCAN apart.
-    - ``inertia_curve``, ``silhouette_curve`` and
-      ``calinski_harabasz_curve`` carry the K-Means selection
-      diagnostics (plan §2). For GMM they stay empty; symmetrically,
-      ``bic_curve`` / ``icl_curve`` are empty for K-Means.
-
     Attributes:
         labels: Hard cluster assignment per input row, shape ``(n,)``.
         posteriors: Soft assignment matrix, shape ``(n, k)``; rows sum
-            to 1. ``None`` for non-probabilistic clusterers (K-Means,
+            to 1. ``None`` for non-probabilistic clustering algorithms (K-Means,
             HDBSCAN).
         k: The number of clusters in the final fit.
         silhouette: Silhouette score of the final labels (in ``[-1, 1]``).
@@ -75,8 +79,8 @@ class ClusteringResult:
             mean vectors in the *transformed-scaled* space; column names
             are the canonical feature column names.
         stability_ari: Adjusted Rand index between the chosen fit and a
-            second fit with a different seed. The plan warns when this
-            drops below 0.7.
+            second fit with a different seed. A value below 0.7 triggers
+            an "unstable partition" warning in the pipeline result.
         random_state: The seed used for the primary fit.
         covariance_type: Model-variant marker. ``"full"`` / ``"diag"``
             for GMM (``"diag"`` indicates the small-library fallback
@@ -93,7 +97,21 @@ class ClusteringResult:
         calinski_harabasz_curve: ``{k: CH-index}`` across the K-Means
             sweep.
         noise_rate: Share of input rows labelled ``-1`` (HDBSCAN noise).
-            Zero for clusterers that assign every point.
+            Zero for clustering algorithms that assign every point.
+
+    Examples:
+        Produced by :func:`fit_gmm`, :func:`fit_kmeans` and
+        :func:`fit_hdbscan` (see :func:`fit_gmm` for how ``X`` is built):
+
+        >>> fit = fit_gmm(X, k_range=range(2, 6))
+        >>> fit.k
+        2
+        >>> fit.labels.shape
+        (30,)
+        >>> fit.posteriors.shape  # (n_tracks, k); None for hard clustering algorithms
+        (30, 2)
+        >>> fit.feature_means_per_cluster.shape  # (k, n_features)
+        (2, 9)
     """
 
     labels: np.ndarray
@@ -143,11 +161,15 @@ def _choose_k(
 ) -> int:
     """Pick the preferred ``k`` from the BIC and ICL curves.
 
-    Plan Section 1 step 2: candidate ``k*`` is the BIC minimum, but is
-    only accepted over ``k* - 1`` if the improvement exceeds the
-    Kass–Raftery (1995) "strong evidence" threshold (``ΔBIC > 10``).
-    Otherwise we fall back to the smaller ``k``. If BIC and ICL
-    disagree on the final pick, prefer ICL (Biernacki et al. 2000).
+    BIC is the primary selector. The candidate ``k*`` is the BIC
+    minimum, walked down to the smallest ``k`` whose improvement over
+    ``k - 1`` still exceeds the Kass–Raftery (1995) "strong evidence"
+    threshold (``ΔBIC > 10``); otherwise the simpler model wins. ICL
+    then acts as a cross-check (Biernacki et al. 2000): if it favours a
+    different ``k`` *and* BIC does not have strong evidence for its own
+    pick over the ICL pick (``ΔBIC ≤ 10`` between them), we defer to
+    ICL, whose entropy penalty guards against spuriously overlapping
+    clusters. When BIC strongly prefers its own pick, that pick stands.
 
     Args:
         bic_curve: ``{k: BIC}`` over the swept range.
@@ -169,8 +191,14 @@ def _choose_k(
         else:
             break
 
+    # ICL cross-check: override the BIC pick only when BIC's evidence
+    # for it over the ICL pick is not "strong" (ΔBIC ≤ 10).
     icl_choice = min(ks_sorted, key=lambda k: icl_curve[k])
-    return icl_choice if icl_choice != bic_choice else bic_choice
+    if icl_choice != bic_choice:
+        bic_gap = bic_curve[icl_choice] - bic_curve[bic_choice]
+        if bic_gap <= _DELTA_BIC_THRESHOLD:
+            return icl_choice
+    return bic_choice
 
 
 def _cohesion(X: np.ndarray, labels: np.ndarray) -> float:
@@ -215,10 +243,8 @@ def fit_gmm(
         X: Transformed-and-scaled modelling matrix from
             :func:`~playlistsmith.cluster.preprocess.prepare_matrix`.
             Rows are tracks, columns are the nine ReccoBeats features.
-        k_range: Candidate values of ``k`` to sweep. All values must be
-            ``>= 2``.
-        random_state: Seed threaded through ``GaussianMixture`` for
-            reproducibility (plan Section 5).
+        k_range: Candidate values of ``k`` to sweep. All values must be ``>= 2``.
+        random_state: Seed threaded through ``GaussianMixture`` for reproducibility.
 
     Returns:
         A :class:`ClusteringResult` with hard labels, posteriors, the
@@ -229,6 +255,34 @@ def fit_gmm(
     Raises:
         ValueError: If ``X`` is empty or ``k_range`` contains values
             below 2.
+
+    Examples:
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from playlistsmith.cluster import fit_gmm, prepare_matrix
+        >>> # Two obvious groups, then z-score them into a modelling matrix.
+        >>> cols = ["acousticness", "danceability", "energy", "instrumentalness",
+        ...         "liveness", "loudness", "speechiness", "tempo", "valence"]
+        >>> sd = [0.02, 0.02, 0.02, 0.02, 0.02, 1.0, 0.02, 3.0, 0.02]
+        >>> mellow = [0.88, 0.30, 0.20, 0.40, 0.15, -17.0, 0.05, 85.0, 0.25]
+        >>> upbeat = [0.12, 0.80, 0.90, 0.40, 0.15, -6.0, 0.05, 128.0, 0.75]
+        >>> rng = np.random.default_rng(5)
+        >>> features = pd.DataFrame(
+        ...     np.vstack([rng.normal(mellow, sd, (15, 9)),
+        ...                rng.normal(upbeat, sd, (15, 9))]), columns=cols)
+        >>> features.insert(0, "artist", "Various")
+        >>> features.insert(0, "title", [f"Track {i}" for i in range(30)])
+        >>> features.insert(0, "spotify_id", [f"id{i:02d}" for i in range(30)])
+        >>> X, index, scaler, log = prepare_matrix(features)
+        >>> fit = fit_gmm(X, k_range=range(2, 6))
+        >>> fit.k  # BIC/ICL select two clusters
+        2
+        >>> fit.covariance_type  # 'diag' fallback below 50 tracks
+        'diag'
+        >>> round(fit.silhouette, 3)
+        0.567
+        >>> {k: round(v, 1) for k, v in fit.bic_curve.items()}
+        {2: 87.6, 3: 108.3, 4: 127.6, 5: 146.6}
     """
     if X.empty:
         raise ValueError("Cannot fit a GMM on an empty matrix.")
@@ -312,7 +366,7 @@ def _kmeans_choose_k(
 ) -> int:
     """Pick ``k`` by silhouette-Calinski–Harabasz agreement.
 
-    Plan §2 step 2: silhouette systematically prefers low ``k`` and
+    Silhouette systematically prefers low ``k`` and
     well-separated convex blobs, which under-segments real audio
     libraries. The Calinski–Harabasz index pulls in the other direction.
     We score each ``k`` by the sum of its ranks under both metrics
@@ -345,12 +399,12 @@ def fit_kmeans(
 ) -> ClusteringResult:
     """Fit K-Means and select ``k`` by silhouette-CH agreement.
 
-    K-Means is the cheap, hard-assignment alternative to GMM
-    (plan Section 2). It is useful as a sanity check and as the
+    K-Means is the cheap, hard-assignment alternative to GMM.
+    It is useful as a sanity check and as the
     small-library fallback below ~25 tracks where GMM covariance is
     too under-determined to be trusted.
 
-    Selection follows plan §2 step 2: for each ``k`` we compute
+    Selection works as follows: for each ``k`` we compute
     inertia, silhouette and Calinski–Harabasz; ``k`` is picked by
     sum-of-ranks across silhouette and CH (see :func:`_kmeans_choose_k`).
 
@@ -371,6 +425,21 @@ def fit_kmeans(
     Raises:
         ValueError: If ``X`` is empty or ``k_range`` contains values
             below 2.
+
+    Examples:
+        Using the modelling matrix ``X`` from :func:`prepare_matrix`
+        (built as in the :func:`fit_gmm` example):
+
+        >>> from playlistsmith.cluster import fit_kmeans
+        >>> fit = fit_kmeans(X, k_range=range(2, 6))
+        >>> fit.k
+        2
+        >>> fit.posteriors is None  # K-Means is a hard clustering algorithm
+        True
+        >>> round(fit.silhouette, 3)
+        0.567
+        >>> fit.covariance_type
+        'kmeans'
     """
     if X.empty:
         raise ValueError("Cannot fit K-Means on an empty matrix.")
@@ -443,7 +512,7 @@ def fit_hdbscan(
 ) -> ClusteringResult:
     """Fit HDBSCAN, surfacing low-density points as noise.
 
-    Plan §3: HDBSCAN discovers the cluster count from the data and is
+    HDBSCAN discovers the cluster count from the data and is
     honest about songs that genuinely do not fit any playlist —
     low-density points are labelled ``-1`` rather than being forced
     into a cluster. The result's ``noise_rate`` reports the share of
@@ -453,11 +522,11 @@ def fit_hdbscan(
         X: Transformed-and-scaled modelling matrix from
             :func:`~playlistsmith.cluster.preprocess.prepare_matrix`.
         min_cluster_size: The smallest cluster HDBSCAN is allowed to
-            return. Plan default is ``max(5, n_tracks // 50)``; the
+            return. The default is ``max(5, n_tracks // 50)``; the
             public :func:`~playlistsmith.cluster.cluster` entry point
             applies that default.
         min_samples: Noise sensitivity (lower → fewer noise points).
-            Defaults to ``min_cluster_size`` per plan §3.
+            Defaults to ``min_cluster_size``.
 
     Returns:
         A :class:`ClusteringResult` with hard labels (``-1`` for noise),
@@ -468,6 +537,21 @@ def fit_hdbscan(
 
     Raises:
         ValueError: If ``X`` is empty.
+
+    Examples:
+        Using the modelling matrix ``X`` from :func:`prepare_matrix`
+        (built as in the :func:`fit_gmm` example):
+
+        >>> from playlistsmith.cluster import fit_hdbscan
+        >>> fit = fit_hdbscan(X, min_cluster_size=5)
+        >>> fit.k
+        2
+        >>> round(fit.noise_rate, 3)  # share of tracks labelled -1
+        0.0
+        >>> sorted(set(fit.labels.tolist()))
+        [0, 1]
+        >>> fit.covariance_type
+        'hdbscan'
     """
     if X.empty:
         raise ValueError("Cannot fit HDBSCAN on an empty matrix.")

@@ -102,7 +102,7 @@ def render() -> None:
                 "Playlist name (filename)", required=True
             ),
         },
-        use_container_width=True,
+        width='stretch',
     )
 
     naming, errors = _validate_naming(edited)

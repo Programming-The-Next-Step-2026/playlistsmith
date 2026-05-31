@@ -7,12 +7,10 @@ playlist export. The pipeline is sequenced as:
 1. :mod:`.preprocess` — logit / log transforms, median imputation,
    standard-scaling, and a record of what happened
    (:class:`.preprocess.TransformLog`).
-2. :mod:`.algorithms` — the actual clustering (GMM is the default per
-   ``CLAUDE.md``; K-Means and HDBSCAN are alternatives).
+2. :mod:`.algorithms` — the actual clustering (GMM is the default;
+   K-Means and HDBSCAN are alternatives).
 3. :mod:`.interpret` — short, deduplicated human-readable labels per
    cluster (e.g. ``"high energy, fast tempo, low valence"``).
-
-The full design is in ``plans/clustering_analysis_revised.md``.
 """
 
 from __future__ import annotations

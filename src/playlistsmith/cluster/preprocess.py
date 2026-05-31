@@ -1,9 +1,9 @@
 """Shared preprocessing for the clustering pipeline.
 
 This module is the single entry point that every clustering algorithm
-goes through, so they all see identical input. The contract is described
-in ``plans/clustering_analysis_revised.md`` Section 0; in short:
+goes through, so they all see identical input.
 
+Prepocessing steps:
 - The seven bounded ``[0, 1]`` features (:data:`BOUNDED_FEATURES`) are
   logit-transformed before scaling, with a small epsilon clip so that
   raw ``0`` / ``1`` values do not blow up.
@@ -81,6 +81,18 @@ class TransformLog:
         dropped_tracks: Identity frame (``spotify_id``, ``title``,
             ``artist``) for rows dropped because more than 3 of 9
             features were missing. Excluded from equality/repr.
+
+    Examples:
+        Returned as the fourth element of :func:`prepare_matrix` (see its
+        example for how ``features`` is built):
+
+        >>> X, index, scaler, log = prepare_matrix(features)
+        >>> log.log_columns
+        ('tempo',)
+        >>> log.imputed_counts  # nothing missing in this synthetic frame
+        {}
+        >>> log.dropped_tracks.empty
+        True
     """
 
     logit_columns: tuple[str, ...]
@@ -121,6 +133,30 @@ def prepare_matrix(
     Raises:
         ValueError: If ``features_df`` is empty, or if any of the nine
             feature columns are missing from the input.
+
+    Examples:
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from playlistsmith.cluster import prepare_matrix
+        >>> cols = ["acousticness", "danceability", "energy", "instrumentalness",
+        ...         "liveness", "loudness", "speechiness", "tempo", "valence"]
+        >>> sd = [0.02, 0.02, 0.02, 0.02, 0.02, 1.0, 0.02, 3.0, 0.02]
+        >>> mellow = [0.88, 0.30, 0.20, 0.40, 0.15, -17.0, 0.05, 85.0, 0.25]
+        >>> upbeat = [0.12, 0.80, 0.90, 0.40, 0.15, -6.0, 0.05, 128.0, 0.75]
+        >>> rng = np.random.default_rng(5)
+        >>> features = pd.DataFrame(
+        ...     np.vstack([rng.normal(mellow, sd, (15, 9)),
+        ...                rng.normal(upbeat, sd, (15, 9))]), columns=cols)
+        >>> features.insert(0, "artist", "Various")
+        >>> features.insert(0, "title", [f"Track {i}" for i in range(30)])
+        >>> features.insert(0, "spotify_id", [f"id{i:02d}" for i in range(30)])
+        >>> X, index, scaler, log = prepare_matrix(features)
+        >>> X.shape  # (n_tracks, n_features); identity columns split out
+        (30, 9)
+        >>> index.columns.tolist()
+        ['spotify_id', 'title', 'artist']
+        >>> log.logit_columns[:3]
+        ('acousticness', 'danceability', 'energy')
     """
     if features_df.empty:
         raise ValueError("Cannot prepare an empty features frame for clustering.")

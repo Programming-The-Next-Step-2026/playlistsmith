@@ -12,7 +12,8 @@
 # only CSV that belongs in the repo, so it is explicitly re-included.
 *.csv
 !tests/example_tracklist.csv
-!docs/example_synthetic.csv
+!tests/example_synthetic.csv
+!docs/rock_&_classical_mix.csv
 
 # venv 
 .venv/

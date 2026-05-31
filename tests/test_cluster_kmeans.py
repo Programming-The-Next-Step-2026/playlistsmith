@@ -1,7 +1,7 @@
 """Tests for :func:`playlistsmith.cluster.algorithms.fit_kmeans`.
 
-K-Means is the cheap, hard-assignment alternative to GMM
-(plan Section 2). Selection differs from the GMM path:
+K-Means is the cheap, hard-assignment alternative to GMM.
+Selection differs from the GMM path:
 
 - there is no BIC / ICL, so :attr:`ClusteringResult.bic_curve` and
   :attr:`icl_curve` are empty;
