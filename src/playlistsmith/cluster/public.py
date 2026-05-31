@@ -22,12 +22,20 @@ Downstream code (``viz``, ``io.playlist_export``) should import
 from __future__ import annotations
 
 import threading
+import warnings
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
-import umap
+
+with warnings.catch_warnings():
+    # umap-learn emits an ImportWarning at import time when TensorFlow is
+    # absent (only its optional ParametricUMAP backend needs it, which we
+    # never use). Suppress just that warning so importing the cluster
+    # pipeline stays quiet; everything else still surfaces normally.
+    warnings.simplefilter("ignore", ImportWarning)
+    import umap
 from sklearn.decomposition import PCA
 
 from playlistsmith.cluster.algorithms import (

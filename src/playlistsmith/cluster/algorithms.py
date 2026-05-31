@@ -161,11 +161,15 @@ def _choose_k(
 ) -> int:
     """Pick the preferred ``k`` from the BIC and ICL curves.
 
-    Candidate ``k*`` is the BIC minimum, but is
-    only accepted over ``k* - 1`` if the improvement exceeds the
-    Kass–Raftery (1995) "strong evidence" threshold (``ΔBIC > 10``).
-    Otherwise we fall back to the smaller ``k``. If BIC and ICL
-    disagree on the final pick, prefer ICL (Biernacki et al. 2000).
+    BIC is the primary selector. The candidate ``k*`` is the BIC
+    minimum, walked down to the smallest ``k`` whose improvement over
+    ``k - 1`` still exceeds the Kass–Raftery (1995) "strong evidence"
+    threshold (``ΔBIC > 10``); otherwise the simpler model wins. ICL
+    then acts as a cross-check (Biernacki et al. 2000): if it favours a
+    different ``k`` *and* BIC does not have strong evidence for its own
+    pick over the ICL pick (``ΔBIC ≤ 10`` between them), we defer to
+    ICL, whose entropy penalty guards against spuriously overlapping
+    clusters. When BIC strongly prefers its own pick, that pick stands.
 
     Args:
         bic_curve: ``{k: BIC}`` over the swept range.
@@ -187,8 +191,14 @@ def _choose_k(
         else:
             break
 
+    # ICL cross-check: override the BIC pick only when BIC's evidence
+    # for it over the ICL pick is not "strong" (ΔBIC ≤ 10).
     icl_choice = min(ks_sorted, key=lambda k: icl_curve[k])
-    return icl_choice if icl_choice != bic_choice else bic_choice
+    if icl_choice != bic_choice:
+        bic_gap = bic_curve[icl_choice] - bic_curve[bic_choice]
+        if bic_gap <= _DELTA_BIC_THRESHOLD:
+            return icl_choice
+    return bic_choice
 
 
 def _cohesion(X: np.ndarray, labels: np.ndarray) -> float:
