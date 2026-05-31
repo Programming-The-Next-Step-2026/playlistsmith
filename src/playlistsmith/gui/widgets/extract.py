@@ -28,6 +28,25 @@ def render() -> None:
         "dropped and listed below."
     )
 
+    with st.expander("Which features are extracted?", expanded=False):
+        st.markdown(
+            "Each resolved track gets these nine precomputed audio features:\n"
+            "\n"
+            "- `acousticness`\n"
+            "- `danceability`\n"
+            "- `energy`\n"
+            "- `instrumentalness`\n"
+            "- `liveness`\n"
+            "- `loudness`\n"
+            "- `speechiness`\n"
+            "- `tempo`\n"
+            "- `valence`\n"
+            "\n"
+            "See the [ReccoBeats audio features documentation]"
+            "(https://reccobeats.com/docs/documentation/Analysis/audio-features-extraction) "
+            "for an explanation of these features."
+        )
+
     already_extracted = st.session_state.get(KEYS.features_df) is not None
     button_label = "Re-extract features" if already_extracted else "Extract features"
 
