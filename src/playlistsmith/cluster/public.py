@@ -444,9 +444,6 @@ def cluster(
     Raises:
         ValueError: If ``method`` is not one of ``{"gmm", "kmeans",
             "hdbscan"}``.
-        NotImplementedError: If ``method`` is recognised but its
-            implementation is not yet wired up (currently ``"kmeans"``
-            and ``"hdbscan"``).
     """
     if method not in _SUPPORTED_METHODS:
         raise ValueError(
