@@ -2,7 +2,7 @@
 
 Primary view: UMAP-2D scatter (always available, from
 ``diagnostics.projection_2d``). Optional toggle: PCA-3D scatter when
-the cluster module emits ``diagnostics.projection_3d`` (plan §6.2).
+the cluster module emits ``diagnostics.projection_3d``.
 For very small libraries (fewer than three features or rows after
 preprocessing) the 3-D projection is not produced and the toggle is
 greyed out with an explanatory tooltip.

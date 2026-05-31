@@ -72,7 +72,7 @@ class ClusterDiagnostics:
 
     The cluster step itself does not import any plotting library; this
     bundle contains everything the viz subpackage needs to draw scatter
-    plots, heatmaps and selection diagnostics (plan §6).
+    plots, heatmaps and selection diagnostics.
 
     Attributes:
         pca_components: ``(n_tracks × n_components)`` of PCA coordinates
@@ -85,11 +85,11 @@ class ClusterDiagnostics:
             component, in component order — useful for axis labels.
         projection_2d: ``(n_tracks × 2)`` 2-D embedding for scatter
             plots. Row-aligned with ``tracks``; columns ``dim1``,
-            ``dim2``. UMAP is the MIR standard (plan §6).
+            ``dim2``. UMAP is the MIR standard.
         projection_method: Which projection produced ``projection_2d``
             (``"umap"`` here; ``"tsne"`` if we ever fall back).
         projection_3d: ``(n_tracks × 3)`` PCA-3D embedding for the
-            optional 3-D scatter (plan §6.2). Row-aligned with
+            optional 3-D scatter. Row-aligned with
             ``tracks``; columns ``pc1``, ``pc2``, ``pc3``. Fit on the
             same z-scored modelling matrix used for clustering, so it
             shares the axes the model actually saw. ``None`` when the
@@ -264,7 +264,7 @@ def _post_processing_warnings(
       probably wants a lower ``min_playlist_size`` or a different
       ``method``.
     - **Dominant cluster** — any cluster holding more than ``max_share``
-      of the library is flagged. The plan deliberately does not
+      of the library is flagged. We deliberately do not
       auto-split (that would re-introduce algorithm choice); we surface
       the problem and let the user re-run with a larger ``k`` or
       ``method='hdbscan'``.
@@ -408,7 +408,7 @@ def _build_diagnostics(
         heatmap_rows, index=final_ids, columns=list(FEATURE_COLUMNS)
     )
 
-    # 3-D PCA toggle (plan §6.2). Reuses the PCA fit above so the 3-D
+    # 3-D PCA toggle. Reuses the PCA fit above so the 3-D
     # coordinates share the axes the canonical-ordering tiebreak uses.
     projection_3d: pd.DataFrame | None
     if n_components >= 3:
@@ -540,7 +540,7 @@ def cluster(
         mcs = (
             hdbscan_min_cluster_size
             if hdbscan_min_cluster_size is not None
-            else max(5, len(X) // 50)  # plan §3 default
+            else max(5, len(X) // 50)  # default
         )
         raw = fit_hdbscan(
             X, min_cluster_size=mcs, min_samples=hdbscan_min_samples

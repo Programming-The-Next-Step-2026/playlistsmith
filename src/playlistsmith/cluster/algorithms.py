@@ -79,8 +79,8 @@ class ClusteringResult:
             mean vectors in the *transformed-scaled* space; column names
             are the canonical feature column names.
         stability_ari: Adjusted Rand index between the chosen fit and a
-            second fit with a different seed. The plan warns when this
-            drops below 0.7.
+            second fit with a different seed. A value much below 0.7
+            indicates an unstable partition.
         random_state: The seed used for the primary fit.
         covariance_type: Model-variant marker. ``"full"`` / ``"diag"``
             for GMM (``"diag"`` indicates the small-library fallback
@@ -356,7 +356,7 @@ def _kmeans_choose_k(
 ) -> int:
     """Pick ``k`` by silhouette-Calinski–Harabasz agreement.
 
-    Plan §2 step 2: silhouette systematically prefers low ``k`` and
+    Silhouette systematically prefers low ``k`` and
     well-separated convex blobs, which under-segments real audio
     libraries. The Calinski–Harabasz index pulls in the other direction.
     We score each ``k`` by the sum of its ranks under both metrics
@@ -394,7 +394,7 @@ def fit_kmeans(
     small-library fallback below ~25 tracks where GMM covariance is
     too under-determined to be trusted.
 
-    Selection follows plan §2 step 2: for each ``k`` we compute
+    Selection works as follows: for each ``k`` we compute
     inertia, silhouette and Calinski–Harabasz; ``k`` is picked by
     sum-of-ranks across silhouette and CH (see :func:`_kmeans_choose_k`).
 
@@ -502,7 +502,7 @@ def fit_hdbscan(
 ) -> ClusteringResult:
     """Fit HDBSCAN, surfacing low-density points as noise.
 
-    Plan §3: HDBSCAN discovers the cluster count from the data and is
+    HDBSCAN discovers the cluster count from the data and is
     honest about songs that genuinely do not fit any playlist —
     low-density points are labelled ``-1`` rather than being forced
     into a cluster. The result's ``noise_rate`` reports the share of
@@ -512,11 +512,11 @@ def fit_hdbscan(
         X: Transformed-and-scaled modelling matrix from
             :func:`~playlistsmith.cluster.preprocess.prepare_matrix`.
         min_cluster_size: The smallest cluster HDBSCAN is allowed to
-            return. Plan default is ``max(5, n_tracks // 50)``; the
+            return. The default is ``max(5, n_tracks // 50)``; the
             public :func:`~playlistsmith.cluster.cluster` entry point
             applies that default.
         min_samples: Noise sensitivity (lower → fewer noise points).
-            Defaults to ``min_cluster_size`` per plan §3.
+            Defaults to ``min_cluster_size``.
 
     Returns:
         A :class:`ClusteringResult` with hard labels (``-1`` for noise),

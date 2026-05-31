@@ -33,7 +33,7 @@ __all__ = ["describe_clusters"]
 _NEAR_ZERO_Z_THRESHOLD: float = 0.5
 
 #: Maximum number of features in a single summary string. Three keeps
-#: the label legible; the plan picks this number explicitly.
+#: the label legible.
 _MAX_FEATURES_IN_SUMMARY: int = 3
 
 #: Absolute Pearson correlation above which two features are treated as
