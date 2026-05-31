@@ -1,8 +1,14 @@
 # Playlistsmith
 
-Content-based clustering and recommendation for music libraries. You hand
+Content-based clustering for music libraries (recommendation planned). You hand
 Playlistsmith a CSV track list; it computes audio features for those tracks,
 clusters them by sound, and writes one playlist CSV per cluster.
+
+> **New here? Start with the tutorial.** The annotated vignette in
+> [docs/vignette.ipynb](docs/vignette.ipynb) walks through the whole pipeline
+> end to end — from an Exportify CSV to a set of exported playlists — with
+> screenshots, a worked rock-vs-classical example, and both the GUI and Python
+> API. Run it from the `docs/` directory so the relative paths resolve.
 
 ## Motivation
 
@@ -67,7 +73,7 @@ src/playlistsmith/
 │   ├── preprocess.py      # feature scaling / preparation
 │   ├── algorithms.py      # KMeans / GMM / HDBSCAN fitting + selection
 │   ├── interpret.py       # per-cluster summaries
-│   └── public.py          # high-level cluster_tracks(...) entry point
+│   └── public.py          # high-level cluster(...) entry point
 └── gui/
     ├── __init__.py        # exposes the playlistsmith-gui entry point
     ├── app.py             # Streamlit single-page app
@@ -149,11 +155,33 @@ pipeline runs against a deterministic synthetic dataset. Any extra
 arguments after the flag are forwarded to Streamlit (e.g.
 `playlistsmith-gui -- --server.port 8502`).
 
-## Installation (local / development)
+## Installation
 
-Playlistsmith targets **Python 3.12**. From the repository root, install the
-package in editable mode together with the development extras (test and type
-tooling):
+Playlistsmith targets **Python 3.12**.
+
+### From GitHub (remote)
+
+To use the package without cloning it, install the latest `main` straight from
+GitHub with `pip`:
+
+```bash
+pip install "git+https://github.com/Programming-The-Next-Step-2026/playlistsmith.git"
+```
+
+To pull in the Streamlit GUI at the same time (see [Usage → GUI](#gui)), request
+the `[gui]` extra:
+
+```bash
+pip install "playlistsmith[gui] @ git+https://github.com/Programming-The-Next-Step-2026/playlistsmith.git"
+```
+
+Pin a specific commit or tag by appending `@<ref>` to the URL, e.g.
+`...playlistsmith.git@main`.
+
+### Local / development
+
+From a clone of the repository root, install the package in editable mode
+together with the development extras (test and type tooling):
 
 ```bash
 pip install -e ".[dev]"
@@ -201,4 +229,4 @@ pytest --cov=playlistsmith --cov-report=term-missing
 This project is not affiliated with, sponsored by, or endorsed by Exportify,
 ReccoBeats, or Spotify. These names are used only to describe compatible input
 formats and data sources. No Spotify-derived audio features ever enter the
-clustering or recommendation pipeline.
+clustering pipeline.
