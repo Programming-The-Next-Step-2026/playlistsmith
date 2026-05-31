@@ -73,6 +73,10 @@ _UNCLASSIFIED_SUMMARY: str = "unclassified"
 #: Methods recognised by :func:`cluster`.
 _SUPPORTED_METHODS: tuple[str, ...] = ("gmm", "kmeans", "hdbscan")
 
+#: Stability (adjusted Rand index) below which we warn that the
+#: partition is unstable across seeds. See ``ClusteringResult.stability_ari``.
+_STABILITY_ARI_THRESHOLD: float = 0.7
+
 
 @dataclass
 class ClusterDiagnostics:
@@ -261,11 +265,14 @@ def _collapse_small_clusters(
 
 
 def _post_processing_warnings(
-    final_labels: np.ndarray, max_share: float, min_size: int
+    final_labels: np.ndarray,
+    max_share: float,
+    min_size: int,
+    stability_ari: float,
 ) -> list[str]:
     """Build post-processing warnings for the pipeline result.
 
-    Two failure modes are surfaced:
+    Three failure modes are surfaced:
 
     - **All tracks unclassified** — if the collapse step routed every
       track to ``-1``, no real playlists were produced. The user
@@ -276,6 +283,10 @@ def _post_processing_warnings(
       auto-split (that would re-introduce algorithm choice); we surface
       the problem and let the user re-run with a larger ``k`` or
       ``method='hdbscan'``.
+    - **Unstable partition** — if ``stability_ari`` (agreement between
+      the chosen fit and a second fit with a different seed) drops below
+      ``_STABILITY_ARI_THRESHOLD``, the clustering is sensitive to the
+      random seed and the playlists should be read with caution.
     """
     total = len(final_labels)
     if total == 0:
@@ -300,6 +311,13 @@ def _post_processing_warnings(
                 f"max_playlist_share={max_share:.0%} threshold. Consider "
                 f"a larger k or method='hdbscan'."
             )
+    if stability_ari < _STABILITY_ARI_THRESHOLD:
+        warnings.append(
+            f"Unstable partition: stability_ari={stability_ari:.2f} is "
+            f"below {_STABILITY_ARI_THRESHOLD:.1f}, so the clusters shift "
+            "noticeably between random seeds. Treat the playlists as "
+            "tentative, or try a different k_range or method."
+        )
     return warnings
 
 
@@ -557,7 +575,10 @@ def cluster(
 
     final_labels = _collapse_small_clusters(ordered.labels, min_playlist_size)
     warnings = _post_processing_warnings(
-        final_labels, max_playlist_share, min_playlist_size
+        final_labels,
+        max_playlist_share,
+        min_playlist_size,
+        ordered.stability_ari,
     )
 
     raw_descriptions = describe_clusters(ordered, X)

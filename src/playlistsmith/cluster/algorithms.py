@@ -79,8 +79,8 @@ class ClusteringResult:
             mean vectors in the *transformed-scaled* space; column names
             are the canonical feature column names.
         stability_ari: Adjusted Rand index between the chosen fit and a
-            second fit with a different seed. A value much below 0.7
-            indicates an unstable partition.
+            second fit with a different seed. A value below 0.7 triggers
+            an "unstable partition" warning in the pipeline result.
         random_state: The seed used for the primary fit.
         covariance_type: Model-variant marker. ``"full"`` / ``"diag"``
             for GMM (``"diag"`` indicates the small-library fallback
