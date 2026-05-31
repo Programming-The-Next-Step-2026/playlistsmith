@@ -101,6 +101,20 @@ class ClusterDiagnostics:
             frame indexed by cluster id (including ``-1`` for the
             Unclassified bucket if present). Columns are the canonical
             feature columns. Heatmap-ready.
+
+    Examples:
+        Reached through :attr:`ClusterPipelineResult.diagnostics` (see
+        :func:`cluster` for how ``features`` is built):
+
+        >>> diag = cluster(features, k_range=range(2, 6)).diagnostics
+        >>> diag.projection_method
+        'umap'
+        >>> diag.projection_2d.columns.tolist()
+        ['dim1', 'dim2']
+        >>> [round(v, 2) for v in diag.pca_explained_variance_ratio[:3]]
+        [0.67, 0.13, 0.11]
+        >>> diag.zprofile_heatmap.shape  # (n_clusters, n_features)
+        (2, 9)
     """
 
     pca_components: pd.DataFrame
@@ -134,6 +148,20 @@ class ClusterPipelineResult:
         diagnostics: Visualisation-ready artefacts (PCA coordinates,
             2-D projection, z-profile heatmap) — see
             :class:`ClusterDiagnostics`.
+
+    Examples:
+        Returned by :func:`cluster` (see its example for how ``features``
+        is built):
+
+        >>> result = cluster(features, k_range=range(2, 6))
+        >>> result.tracks.columns.tolist()
+        ['spotify_id', 'title', 'artist', 'cluster', 'cluster_summary']
+        >>> result.descriptions.columns.tolist()
+        ['cluster', 'size', 'top_features', 'z_profile', 'cluster_summary']
+        >>> result.clustering.k
+        2
+        >>> result.warnings
+        []
     """
 
     tracks: pd.DataFrame
@@ -444,6 +472,34 @@ def cluster(
     Raises:
         ValueError: If ``method`` is not one of ``{"gmm", "kmeans",
             "hdbscan"}``.
+
+    Examples:
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from playlistsmith.cluster import cluster
+        >>> # Synthesise two obvious groups so the example needs no network.
+        >>> cols = ["acousticness", "danceability", "energy", "instrumentalness",
+        ...         "liveness", "loudness", "speechiness", "tempo", "valence"]
+        >>> sd = [0.02, 0.02, 0.02, 0.02, 0.02, 1.0, 0.02, 3.0, 0.02]
+        >>> mellow = [0.88, 0.30, 0.20, 0.40, 0.15, -17.0, 0.05, 85.0, 0.25]
+        >>> upbeat = [0.12, 0.80, 0.90, 0.40, 0.15, -6.0, 0.05, 128.0, 0.75]
+        >>> rng = np.random.default_rng(5)
+        >>> values = np.vstack([rng.normal(mellow, sd, (15, 9)),
+        ...                     rng.normal(upbeat, sd, (15, 9))])
+        >>> features = pd.DataFrame(values, columns=cols)
+        >>> features.insert(0, "artist", "Various")
+        >>> features.insert(0, "title", [f"Track {i}" for i in range(30)])
+        >>> features.insert(0, "spotify_id", [f"id{i:02d}" for i in range(30)])
+        >>> result = cluster(features, k_range=range(2, 6))
+        >>> result.descriptions[["cluster", "size", "cluster_summary"]]
+           cluster  size cluster_summary
+        0        0    15     low valence
+        1        1    15    high valence
+        >>> result.tracks.head(3)
+          spotify_id    title   artist  cluster cluster_summary
+        0       id00  Track 0  Various        0     low valence
+        1       id01  Track 1  Various        0     low valence
+        2       id02  Track 2  Various        0     low valence
     """
     if method not in _SUPPORTED_METHODS:
         raise ValueError(

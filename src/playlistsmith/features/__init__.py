@@ -38,6 +38,19 @@ class CoverageReport:
         dropped_tracks: A frame of the dropped tracks (at least the
             ``spotify_id``, ``title`` and ``artist`` columns), so callers
             can report or inspect them. Excluded from equality/repr.
+
+    Examples:
+        >>> import playlistsmith as ps
+        >>> tlib = ps.TrackLibrary("./tests/example_tracklist.csv")
+        >>> _, coverage = tlib.extract_features(mode="precomputed")
+        [playlistsmith] Dropped 3 track(s) with no ReccoBeats precomputed features:
+          - Synthetic Sunrise — The Placeholders
+          - Mock Anthem — Sample Collective, Dummy Vox
+          - Placeholder Pulse — Test Signal
+        >>> coverage.total, coverage.resolved, coverage.dropped
+        (3, 0, 3)
+        >>> print(coverage)  # the synthetic IDs resolve to nothing
+        Feature coverage: 0/3 track(s) resolved via ReccoBeats; 3 dropped.
     """
 
     total: int
@@ -90,6 +103,20 @@ def extract(
 
     Raises:
         ValueError: If ``mode`` is not a supported extraction mode.
+
+    Examples:
+        >>> import playlistsmith as ps
+        >>> from playlistsmith.features import extract
+        >>> tracks = ps.TrackLibrary("./tests/example_tracklist.csv").dataframe
+        >>> features_df, coverage = extract(tracks, mode="precomputed")
+        [playlistsmith] Dropped 3 track(s) with no ReccoBeats precomputed features:
+          - Synthetic Sunrise — The Placeholders
+          - Mock Anthem — Sample Collective, Dummy Vox
+          - Placeholder Pulse — Test Signal
+        >>> print(coverage)  # synthetic IDs aren't known to ReccoBeats
+        Feature coverage: 0/3 track(s) resolved via ReccoBeats; 3 dropped.
+        >>> sorted(features_df.columns)[:4]
+        ['acousticness', 'artist', 'danceability', 'energy']
     """
     if mode == "precomputed":
         # Imported lazily so the heavy/HTTP module is only loaded when

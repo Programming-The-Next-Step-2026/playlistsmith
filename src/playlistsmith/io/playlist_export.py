@@ -73,6 +73,15 @@ def validate_name(name: str) -> bool:
 
     Returns:
         ``True`` if the name is safe to use, ``False`` otherwise.
+
+    Examples:
+        >>> from playlistsmith.io.playlist_export import validate_name
+        >>> validate_name("Late Night Drive")
+        True
+        >>> validate_name("AC/DC mix")  # path separator is rejected
+        False
+        >>> validate_name("   ")  # empty after stripping
+        False
     """
     if not isinstance(name, str):
         return False
@@ -231,6 +240,22 @@ def write_cluster_csvs(
             another playlist name.
         TypeError: If ``result`` is neither a DataFrame nor an object
             with a ``.tracks`` DataFrame attribute.
+
+    Examples:
+        Given a ``result`` from :func:`playlistsmith.cluster.cluster`
+        (see its example for how ``features`` is built):
+
+        >>> import tempfile
+        >>> import pandas as pd
+        >>> from playlistsmith.cluster import cluster
+        >>> from playlistsmith.io import write_cluster_csvs
+        >>> result = cluster(features, k_range=range(2, 6))
+        >>> tmp = tempfile.mkdtemp()
+        >>> paths = write_cluster_csvs(result, tmp, naming={0: "Mellow", 1: "Upbeat"})
+        >>> [p.name for p in paths]
+        ['Mellow.csv', 'Upbeat.csv']
+        >>> pd.read_csv(paths[0]).columns.tolist()
+        ['Track URI', 'Track Name', 'Artist Name(s)', 'Cluster', 'Cluster Summary']
     """
     tracks = _tracks_frame(result)
     output_dir = Path(output_dir)

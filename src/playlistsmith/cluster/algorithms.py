@@ -94,6 +94,20 @@ class ClusteringResult:
             sweep.
         noise_rate: Share of input rows labelled ``-1`` (HDBSCAN noise).
             Zero for clusterers that assign every point.
+
+    Examples:
+        Produced by :func:`fit_gmm`, :func:`fit_kmeans` and
+        :func:`fit_hdbscan` (see :func:`fit_gmm` for how ``X`` is built):
+
+        >>> fit = fit_gmm(X, k_range=range(2, 6))
+        >>> fit.k
+        2
+        >>> fit.labels.shape
+        (30,)
+        >>> fit.posteriors.shape  # (n_tracks, k); None for hard clusterers
+        (30, 2)
+        >>> fit.feature_means_per_cluster.shape  # (k, n_features)
+        (2, 9)
     """
 
     labels: np.ndarray
@@ -229,6 +243,34 @@ def fit_gmm(
     Raises:
         ValueError: If ``X`` is empty or ``k_range`` contains values
             below 2.
+
+    Examples:
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from playlistsmith.cluster import fit_gmm, prepare_matrix
+        >>> # Two obvious groups, then z-score them into a modelling matrix.
+        >>> cols = ["acousticness", "danceability", "energy", "instrumentalness",
+        ...         "liveness", "loudness", "speechiness", "tempo", "valence"]
+        >>> sd = [0.02, 0.02, 0.02, 0.02, 0.02, 1.0, 0.02, 3.0, 0.02]
+        >>> mellow = [0.88, 0.30, 0.20, 0.40, 0.15, -17.0, 0.05, 85.0, 0.25]
+        >>> upbeat = [0.12, 0.80, 0.90, 0.40, 0.15, -6.0, 0.05, 128.0, 0.75]
+        >>> rng = np.random.default_rng(5)
+        >>> features = pd.DataFrame(
+        ...     np.vstack([rng.normal(mellow, sd, (15, 9)),
+        ...                rng.normal(upbeat, sd, (15, 9))]), columns=cols)
+        >>> features.insert(0, "artist", "Various")
+        >>> features.insert(0, "title", [f"Track {i}" for i in range(30)])
+        >>> features.insert(0, "spotify_id", [f"id{i:02d}" for i in range(30)])
+        >>> X, index, scaler, log = prepare_matrix(features)
+        >>> fit = fit_gmm(X, k_range=range(2, 6))
+        >>> fit.k  # BIC/ICL select two clusters
+        2
+        >>> fit.covariance_type  # 'diag' fallback below 50 tracks
+        'diag'
+        >>> round(fit.silhouette, 3)
+        0.567
+        >>> {k: round(v, 1) for k, v in fit.bic_curve.items()}
+        {2: 87.6, 3: 108.3, 4: 127.6, 5: 146.6}
     """
     if X.empty:
         raise ValueError("Cannot fit a GMM on an empty matrix.")
@@ -371,6 +413,21 @@ def fit_kmeans(
     Raises:
         ValueError: If ``X`` is empty or ``k_range`` contains values
             below 2.
+
+    Examples:
+        Using the modelling matrix ``X`` from :func:`prepare_matrix`
+        (built as in the :func:`fit_gmm` example):
+
+        >>> from playlistsmith.cluster import fit_kmeans
+        >>> fit = fit_kmeans(X, k_range=range(2, 6))
+        >>> fit.k
+        2
+        >>> fit.posteriors is None  # K-Means is a hard clusterer
+        True
+        >>> round(fit.silhouette, 3)
+        0.567
+        >>> fit.covariance_type
+        'kmeans'
     """
     if X.empty:
         raise ValueError("Cannot fit K-Means on an empty matrix.")
@@ -468,6 +525,21 @@ def fit_hdbscan(
 
     Raises:
         ValueError: If ``X`` is empty.
+
+    Examples:
+        Using the modelling matrix ``X`` from :func:`prepare_matrix`
+        (built as in the :func:`fit_gmm` example):
+
+        >>> from playlistsmith.cluster import fit_hdbscan
+        >>> fit = fit_hdbscan(X, min_cluster_size=5)
+        >>> fit.k
+        2
+        >>> round(fit.noise_rate, 3)  # share of tracks labelled -1
+        0.0
+        >>> sorted(set(fit.labels.tolist()))
+        [0, 1]
+        >>> fit.covariance_type
+        'hdbscan'
     """
     if X.empty:
         raise ValueError("Cannot fit HDBSCAN on an empty matrix.")

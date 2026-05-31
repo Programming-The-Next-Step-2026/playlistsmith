@@ -124,6 +124,19 @@ def describe_clusters(
         ``size``, ``top_features`` (a ``list[str]``), ``z_profile`` (a
         ``dict[str, float]``) and ``summary`` (a ``str``). Cluster rows
         are ordered by ascending cluster id.
+
+    Examples:
+        Using a fit and modelling matrix ``X`` from
+        :func:`~playlistsmith.cluster.fit_gmm` /
+        :func:`~playlistsmith.cluster.prepare_matrix` (``X`` built as in
+        the :func:`~playlistsmith.cluster.fit_gmm` example):
+
+        >>> from playlistsmith.cluster import describe_clusters, fit_gmm
+        >>> fit = fit_gmm(X, k_range=range(2, 6))
+        >>> describe_clusters(fit, X)[["cluster", "size", "summary"]]
+           cluster  size       summary
+        0        0    15  high valence
+        1        1    15   low valence
     """
     correlations = X.corr()
     means = result.feature_means_per_cluster

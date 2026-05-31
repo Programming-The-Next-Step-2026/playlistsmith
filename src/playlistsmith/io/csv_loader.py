@@ -198,6 +198,10 @@ class TrackLibrary:
             >>> import playlistsmith as ps
             >>> tlib = ps.TrackLibrary("./tests/example_tracklist.csv")
             >>> features, coverage = tlib.extract_features(mode="precomputed")
+            [playlistsmith] Dropped 3 track(s) with no ReccoBeats precomputed features:
+              - Synthetic Sunrise — The Placeholders
+              - Mock Anthem — Sample Collective, Dummy Vox
+              - Placeholder Pulse — Test Signal
             >>> print(coverage.dropped_tracks) # all dropped because of synthetic IDs
                             spotify_id              title                        artist
             0  test0000000000000000001  Synthetic Sunrise              The Placeholders
