@@ -4,8 +4,8 @@ Uses Streamlit's official ``AppTest`` harness to walk the page through
 the four user-visible stages — upload, extract, cluster, export — with
 the synthetic ReccoBeats mock transport from
 :mod:`playlistsmith.gui.fixtures` in place of the live API. The
-synthetic example CSV (``docs/example_synthetic.csv``) is the same
-fixture the vignette uses, so the GUI and the vignette stay in sync.
+synthetic example CSV (``tests/example_synthetic.csv``) is the same
+fixture the GUI demo button loads, so the GUI and this test stay in sync.
 """
 
 from __future__ import annotations

@@ -82,7 +82,7 @@ src/playlistsmith/
 ### Python API
 
 The example below runs the full pipeline offline against the bundled
-synthetic Exportify CSV at [docs/example_synthetic.csv](docs/example_synthetic.csv).
+synthetic Exportify CSV at [tests/example_synthetic.csv](tests/example_synthetic.csv).
 Installing the GUI's mock transport reroutes every ReccoBeats call to a
 deterministic in-process handler, so no network access is required:
 
@@ -97,7 +97,7 @@ from playlistsmith.io import playlist_export
 fixtures.install_mock_transport()
 
 # 1. Load the bundled synthetic Exportify-format CSV.
-library = ps.TrackLibrary("./docs/example_synthetic.csv")
+library = ps.TrackLibrary("./tests/example_synthetic.csv")
 print(library)                       # TrackLibrary(source_path='...', tracks=...)
 library.display()                    # pretty-print the parsed tracks
 

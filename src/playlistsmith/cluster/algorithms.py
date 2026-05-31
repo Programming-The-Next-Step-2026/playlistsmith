@@ -1,9 +1,24 @@
 """Clustering algorithms for the playlistsmith pipeline.
 
-The default clusterer is a Gaussian Mixture Model (``CLAUDE.md``:
-"prefer ``GaussianMixture`` over ``KMeans`` for soft cluster assignment;
-use BIC for model selection"). K-Means and HDBSCAN are documented as
-alternatives in the plan and will be added as follow-ups.
+The default clusterer is a Gaussian Mixture Model. K-Means and HDBSCAN are offered as
+alternatives. All three are exposed in the GUI method selector.
+
+Methods
+-------
+- **GMM** (:func:`fit_gmm`, default) — soft, probabilistic assignments;
+  ``k`` is chosen by BIC with an ICL cross-check. Each track gets a
+  posterior over clusters rather than a single hard label. Best for
+  libraries with overlapping content.
+- **K-Means** (:func:`fit_kmeans`) — hard partition into tight,
+  roughly equal-sized blobs; ``k`` is chosen by silhouette–Calinski–
+  Harabasz agreement. Faster than GMM and yields no posteriors. Good
+  when clusters are well separated, and the small-library fallback when
+  GMM covariance is under-determined.
+- **HDBSCAN** (:func:`fit_hdbscan`) — density-based, takes no ``k``.
+  Discovers the cluster count from the data and routes low-density
+  outliers to noise (label ``-1``) instead of forcing them into a
+  cluster. Best when some tracks genuinely shouldn't belong to any
+  playlist.
 
 References
 ----------

@@ -1,9 +1,9 @@
 """Upload widget: CSV file_uploader + TrackLibrary preview.
 
 In demo mode the widget surfaces a one-click "Load example tracklist"
-button that points at ``docs/example_synthetic.csv`` (the synthetic file
-the vignette uses), so a first-time user can see the full pipeline run
-without leaving the GUI.
+button that points at ``tests/example_synthetic.csv`` (a synthetic
+fixture), so a first-time user can see the full pipeline run without
+leaving the GUI.
 """
 
 from __future__ import annotations
@@ -21,10 +21,10 @@ from playlistsmith.gui.state import (
     reset_pipeline_state,
 )
 
-#: Path to the synthetic example CSV (lives at ``docs/example_synthetic.csv``).
+#: Path to the synthetic example CSV (lives at ``tests/example_synthetic.csv``).
 #: Resolved relative to the repo root, located by walking up from this file.
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-EXAMPLE_CSV_PATH = _REPO_ROOT / "docs" / "example_synthetic.csv"
+EXAMPLE_CSV_PATH = _REPO_ROOT / "tests" / "example_synthetic.csv"
 
 
 def _load_library_from_path(path: Path, *, filename: str, identity: str) -> None:
