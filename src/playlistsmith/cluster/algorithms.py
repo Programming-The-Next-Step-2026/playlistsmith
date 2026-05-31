@@ -36,7 +36,6 @@ __all__ = ["ClusteringResult", "fit_gmm", "fit_hdbscan", "fit_kmeans"]
 
 #: Library size at and above which we trust ``covariance_type='full'``.
 #: Below this, GMM full covariance is under-determined on nine features
-#: (plan Section 1 step 5; statistical caveat in Section 7).
 _FULL_COVARIANCE_MIN_TRACKS: int = 50
 
 #: Kass–Raftery (1995) strong-evidence threshold on ΔBIC: a larger ``k``
@@ -51,16 +50,6 @@ _POSTERIOR_LOG_FLOOR: float = 1e-12
 @dataclass
 class ClusteringResult:
     """Outcome of a clustering fit.
-
-    Fields match the contract in
-    ``plans/clustering_analysis_revised.md`` Section 1. Two additions:
-
-    - ``covariance_type`` is reused as a *model-variant* marker so
-      callers can tell GMM-full / GMM-diag / K-Means / HDBSCAN apart.
-    - ``inertia_curve``, ``silhouette_curve`` and
-      ``calinski_harabasz_curve`` carry the K-Means selection
-      diagnostics (plan §2). For GMM they stay empty; symmetrically,
-      ``bic_curve`` / ``icl_curve`` are empty for K-Means.
 
     Attributes:
         labels: Hard cluster assignment per input row, shape ``(n,)``.
@@ -157,7 +146,7 @@ def _choose_k(
 ) -> int:
     """Pick the preferred ``k`` from the BIC and ICL curves.
 
-    Plan Section 1 step 2: candidate ``k*`` is the BIC minimum, but is
+    Candidate ``k*`` is the BIC minimum, but is
     only accepted over ``k* - 1`` if the improvement exceeds the
     Kass–Raftery (1995) "strong evidence" threshold (``ΔBIC > 10``).
     Otherwise we fall back to the smaller ``k``. If BIC and ICL
@@ -229,10 +218,8 @@ def fit_gmm(
         X: Transformed-and-scaled modelling matrix from
             :func:`~playlistsmith.cluster.preprocess.prepare_matrix`.
             Rows are tracks, columns are the nine ReccoBeats features.
-        k_range: Candidate values of ``k`` to sweep. All values must be
-            ``>= 2``.
-        random_state: Seed threaded through ``GaussianMixture`` for
-            reproducibility (plan Section 5).
+        k_range: Candidate values of ``k`` to sweep. All values must be ``>= 2``.
+        random_state: Seed threaded through ``GaussianMixture`` for reproducibility.
 
     Returns:
         A :class:`ClusteringResult` with hard labels, posteriors, the
@@ -387,8 +374,8 @@ def fit_kmeans(
 ) -> ClusteringResult:
     """Fit K-Means and select ``k`` by silhouette-CH agreement.
 
-    K-Means is the cheap, hard-assignment alternative to GMM
-    (plan Section 2). It is useful as a sanity check and as the
+    K-Means is the cheap, hard-assignment alternative to GMM.
+    It is useful as a sanity check and as the
     small-library fallback below ~25 tracks where GMM covariance is
     too under-determined to be trusted.
 

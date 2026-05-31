@@ -8,9 +8,7 @@ each cluster — for example::
 
     "high energy, fast tempo, low valence"
 
-The procedure is documented in
-``plans/clustering_analysis_revised.md`` Section 4:
-
+Labels are obtained through this process:
 1. Compute the per-cluster z-profile. Because the modelling matrix is
    already z-scored, the z-profile is just the cluster's mean vector.
 2. Rank features by ``|z|``.

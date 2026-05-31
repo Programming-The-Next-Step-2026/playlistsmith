@@ -88,7 +88,7 @@ def test_returns_cluster_pipeline_result() -> None:
 
 
 def test_pipeline_result_has_all_required_fields() -> None:
-    """Plan Section 5 contract."""
+    """Attributes of the result dataclass are of the correct type."""
     features = _synthetic_features()
 
     out = cluster(features, random_state=0)
@@ -178,7 +178,7 @@ def test_hdbscan_method_dispatches_to_fit_hdbscan() -> None:
 
 
 def test_clusters_are_relabelled_by_descending_size() -> None:
-    """Plan Section 5: cluster ``0`` is the biggest playlist."""
+    """Cluster ``0`` is the biggest playlist."""
     features = _synthetic_features(cluster_sizes=(80, 40, 20))
 
     # Constrain k to keep this test focused on the relabelling step,

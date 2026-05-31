@@ -7,7 +7,7 @@ Downstream code (``viz``, ``io.playlist_export``) should import
 1. :func:`~playlistsmith.cluster.preprocess.prepare_matrix` — logit/log
    transforms, median imputation, scaling.
 2. :func:`~playlistsmith.cluster.algorithms.fit_gmm` (or another method
-   when explicitly requested — see plan Section 5).
+   when explicitly requested).
 3. Canonical cluster ordering: relabel clusters by descending size,
    ties broken by PC1 of the cluster mean, so cluster ``0`` means
    roughly the same thing across re-runs.
@@ -62,10 +62,8 @@ UNCLASSIFIED_LABEL: int = -1
 #: Human-readable summary string for the Unclassified bucket.
 _UNCLASSIFIED_SUMMARY: str = "unclassified"
 
-#: Methods recognised by :func:`cluster`. K-Means and HDBSCAN are
-#: scheduled as follow-ups in plan Section 8 step 6.
+#: Methods recognised by :func:`cluster`.
 _SUPPORTED_METHODS: tuple[str, ...] = ("gmm", "kmeans", "hdbscan")
-_IMPLEMENTED_METHODS: tuple[str, ...] = ("gmm", "kmeans", "hdbscan")
 
 
 @dataclass
@@ -179,7 +177,7 @@ def _canonical_order(
 
     Cluster ``0`` becomes the largest cluster after this transformation,
     so re-runs that recover the same partition produce stable cluster
-    numbering (plan Section 5).
+    numbering.
 
     Args:
         result: The raw clustering result.
@@ -451,15 +449,13 @@ def cluster(
     Args:
         features_df: A features frame as produced by
             :func:`playlistsmith.features.extract`.
-        method: ``"gmm"`` (default; the only currently implemented
-            method), ``"kmeans"`` or ``"hdbscan"`` (both planned, see
-            plan Section 8 step 6 — raise ``NotImplementedError`` for
-            now). Other strings raise ``ValueError``.
+        method: ``"gmm"`` (default), ``"kmeans"`` or ``"hdbscan"``. 
+            Other strings raise ``ValueError``.
         random_state: Seed threaded through preprocessing-independent
             stochastic steps (the GMM fit and its stability re-fit).
         min_playlist_size: Clusters with fewer than this many tracks
             are collapsed into the Unclassified bucket (cluster id
-            ``-1``). Defaults to ``5`` per plan Section 5.
+            ``-1``). Defaults to ``5``.
         max_playlist_share: If any cluster holds more than this share
             of the library, a warning is emitted (no auto-split).
         k_range: Candidate ``k`` values for GMM model selection.
@@ -505,11 +501,6 @@ def cluster(
         raise ValueError(
             f"Unknown method {method!r}; supported methods are "
             f"{list(_SUPPORTED_METHODS)!r}."
-        )
-    if method not in _IMPLEMENTED_METHODS:
-        raise NotImplementedError(
-            f"method={method!r} is planned but not yet implemented "
-            "(see plan Section 8 step 6)."
         )
 
     X, index, _scaler, transform_log = prepare_matrix(features_df)

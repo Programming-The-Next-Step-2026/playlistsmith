@@ -2,7 +2,7 @@
 
 A bare cluster label is useless to a user — :func:`describe_clusters`
 turns each cluster into a short, human-readable summary such as
-``"high energy, fast tempo, low valence"`` (plan Section 4). The key
+``"high energy, fast tempo, low valence"``. The key
 correctness criteria are:
 
 - one row per cluster, with ``cluster``, ``size``, ``top_features``
@@ -85,7 +85,7 @@ def test_returns_one_row_per_cluster() -> None:
 
 
 def test_has_required_columns() -> None:
-    """Plan Section 4: ``label, size, top features, summary string``."""
+    """``label, size, top features, summary string``."""
     X = _zscore_matrix(n=60)
     labels = np.array([0] * 30 + [1] * 30)
     result = _result_with_means(

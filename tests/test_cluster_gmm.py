@@ -68,7 +68,7 @@ def test_fit_gmm_returns_clustering_result_dataclass() -> None:
 
 
 def test_clustering_result_fields_match_plan_contract() -> None:
-    """Every field listed in plan Section 1 is present and populated."""
+    """Every field is present and populated."""
     X = _three_blob_matrix()
 
     result = fit_gmm(X, k_range=range(2, 6), random_state=0)
@@ -84,7 +84,7 @@ def test_clustering_result_fields_match_plan_contract() -> None:
     assert isinstance(result.feature_means_per_cluster, pd.DataFrame)
     assert isinstance(result.stability_ari, float)
     assert isinstance(result.random_state, int)
-    # Added for small-library-fallback transparency (Section 1 step 5).
+    # Added for small-library-fallback transparency.
     assert isinstance(result.covariance_type, str)
 
 
@@ -221,7 +221,7 @@ def test_random_state_is_recorded_on_result() -> None:
 
 def test_small_library_falls_back_to_diag_covariance() -> None:
     """Below ~50 tracks, full covariance is under-determined; the fitter
-    auto-falls back to ``covariance_type='diag'`` (plan Section 1 step 5)."""
+    auto-falls back to ``covariance_type='diag'``."""
     X = _three_blob_matrix(per_blob=10, seed=0)  # 30 rows total
     assert len(X) < 50
 

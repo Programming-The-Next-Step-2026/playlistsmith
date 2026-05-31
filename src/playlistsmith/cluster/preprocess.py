@@ -1,9 +1,9 @@
 """Shared preprocessing for the clustering pipeline.
 
 This module is the single entry point that every clustering algorithm
-goes through, so they all see identical input. The contract is described
-in ``plans/clustering_analysis_revised.md`` Section 0; in short:
+goes through, so they all see identical input.
 
+Prepocessing steps:
 - The seven bounded ``[0, 1]`` features (:data:`BOUNDED_FEATURES`) are
   logit-transformed before scaling, with a small epsilon clip so that
   raw ``0`` / ``1`` values do not blow up.

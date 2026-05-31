@@ -2,9 +2,8 @@
 
 The preprocessing pipeline turns a unified feature DataFrame (identity
 columns + nine ReccoBeats audio features) into a model-ready matrix.
-The contract is documented in ``plans/clustering_analysis_revised.md``
-Section 0:
 
+Prepocessing steps are:
 - bounded ``[0, 1]`` features are logit-transformed before scaling,
 - ``tempo`` is log-transformed,
 - ``loudness`` is z-scored as-is (already in dB),
