@@ -7,7 +7,7 @@ Downstream code (``viz``, ``io.playlist_export``) should import
 1. :func:`~playlistsmith.cluster.preprocess.prepare_matrix` — logit/log
    transforms, median imputation, scaling.
 2. :func:`~playlistsmith.cluster.algorithms.fit_gmm` (or another method
-   when explicitly requested — see plan Section 5).
+   when explicitly requested).
 3. Canonical cluster ordering: relabel clusters by descending size,
    ties broken by PC1 of the cluster mean, so cluster ``0`` means
    roughly the same thing across re-runs.
@@ -21,12 +21,21 @@ Downstream code (``viz``, ``io.playlist_export``) should import
 
 from __future__ import annotations
 
+import threading
+import warnings
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
-import umap
+
+with warnings.catch_warnings():
+    # umap-learn emits an ImportWarning at import time when TensorFlow is
+    # absent (only its optional ParametricUMAP backend needs it, which we
+    # never use). Suppress just that warning so importing the cluster
+    # pipeline stays quiet; everything else still surfaces normally.
+    warnings.simplefilter("ignore", ImportWarning)
+    import umap
 from sklearn.decomposition import PCA
 
 from playlistsmith.cluster.algorithms import (
@@ -42,6 +51,18 @@ from playlistsmith.io.csv_loader import ARTIST, SPOTIFY_ID, TITLE
 
 __all__ = ["ClusterDiagnostics", "ClusterPipelineResult", "cluster"]
 
+#: Serialises UMAP fits across threads. UMAP's layout optimisation runs
+#: under numba, and the only threading layer available in many installs
+#: (no ``tbb``/``omp``) is ``workqueue``, which is *not* threadsafe: two
+#: concurrent parallel regions abort the whole process with "Numba
+#: workqueue threading layer is terminating: Concurrent access has been
+#: detected." The Streamlit GUI runs each session/rerun in its own
+#: worker thread, so overlapping clustering runs would otherwise crash
+#: the app. UMAP is the only numba-parallel code in the pipeline
+#: (HDBSCAN here is scikit-learn's, pure C/Cython), so guarding the fit
+#: with one process-wide lock is sufficient.
+_UMAP_LOCK = threading.Lock()
+
 #: Cluster id reserved for tracks in playlists that were too small to
 #: be useful (and, in future, for HDBSCAN noise points).
 UNCLASSIFIED_LABEL: int = -1
@@ -49,10 +70,12 @@ UNCLASSIFIED_LABEL: int = -1
 #: Human-readable summary string for the Unclassified bucket.
 _UNCLASSIFIED_SUMMARY: str = "unclassified"
 
-#: Methods recognised by :func:`cluster`. K-Means and HDBSCAN are
-#: scheduled as follow-ups in plan Section 8 step 6.
+#: Methods recognised by :func:`cluster`.
 _SUPPORTED_METHODS: tuple[str, ...] = ("gmm", "kmeans", "hdbscan")
-_IMPLEMENTED_METHODS: tuple[str, ...] = ("gmm", "kmeans", "hdbscan")
+
+#: Stability (adjusted Rand index) below which we warn that the
+#: partition is unstable across seeds. See ``ClusteringResult.stability_ari``.
+_STABILITY_ARI_THRESHOLD: float = 0.7
 
 
 @dataclass
@@ -61,7 +84,7 @@ class ClusterDiagnostics:
 
     The cluster step itself does not import any plotting library; this
     bundle contains everything the viz subpackage needs to draw scatter
-    plots, heatmaps and selection diagnostics (plan §6).
+    plots, heatmaps and selection diagnostics.
 
     Attributes:
         pca_components: ``(n_tracks × n_components)`` of PCA coordinates
@@ -74,11 +97,11 @@ class ClusterDiagnostics:
             component, in component order — useful for axis labels.
         projection_2d: ``(n_tracks × 2)`` 2-D embedding for scatter
             plots. Row-aligned with ``tracks``; columns ``dim1``,
-            ``dim2``. UMAP is the MIR standard (plan §6).
+            ``dim2``. UMAP is the MIR standard.
         projection_method: Which projection produced ``projection_2d``
             (``"umap"`` here; ``"tsne"`` if we ever fall back).
         projection_3d: ``(n_tracks × 3)`` PCA-3D embedding for the
-            optional 3-D scatter (plan §6.2). Row-aligned with
+            optional 3-D scatter. Row-aligned with
             ``tracks``; columns ``pc1``, ``pc2``, ``pc3``. Fit on the
             same z-scored modelling matrix used for clustering, so it
             shares the axes the model actually saw. ``None`` when the
@@ -88,6 +111,20 @@ class ClusterDiagnostics:
             frame indexed by cluster id (including ``-1`` for the
             Unclassified bucket if present). Columns are the canonical
             feature columns. Heatmap-ready.
+
+    Examples:
+        Reached through :attr:`ClusterPipelineResult.diagnostics` (see
+        :func:`cluster` for how ``features`` is built):
+
+        >>> diag = cluster(features, k_range=range(2, 6)).diagnostics
+        >>> diag.projection_method
+        'umap'
+        >>> diag.projection_2d.columns.tolist()
+        ['dim1', 'dim2']
+        >>> [round(v, 2) for v in diag.pca_explained_variance_ratio[:3]]
+        [0.67, 0.13, 0.11]
+        >>> diag.zprofile_heatmap.shape  # (n_clusters, n_features)
+        (2, 9)
     """
 
     pca_components: pd.DataFrame
@@ -121,6 +158,20 @@ class ClusterPipelineResult:
         diagnostics: Visualisation-ready artefacts (PCA coordinates,
             2-D projection, z-profile heatmap) — see
             :class:`ClusterDiagnostics`.
+
+    Examples:
+        Returned by :func:`cluster` (see its example for how ``features``
+        is built):
+
+        >>> result = cluster(features, k_range=range(2, 6))
+        >>> result.tracks.columns.tolist()
+        ['spotify_id', 'title', 'artist', 'cluster', 'cluster_summary']
+        >>> result.descriptions.columns.tolist()
+        ['cluster', 'size', 'top_features', 'z_profile', 'cluster_summary']
+        >>> result.clustering.k
+        2
+        >>> result.warnings
+        []
     """
 
     tracks: pd.DataFrame
@@ -138,11 +189,11 @@ def _canonical_order(
 
     Cluster ``0`` becomes the largest cluster after this transformation,
     so re-runs that recover the same partition produce stable cluster
-    numbering (plan Section 5).
+    numbering.
 
     Args:
         result: The raw clustering result.
-        X: The modelling matrix the clusterer saw, used to compute PC1
+        X: The modelling matrix the clustering algorithm saw, used to compute PC1
             of each cluster mean for tiebreaking.
 
     Returns:
@@ -214,21 +265,28 @@ def _collapse_small_clusters(
 
 
 def _post_processing_warnings(
-    final_labels: np.ndarray, max_share: float, min_size: int
+    final_labels: np.ndarray,
+    max_share: float,
+    min_size: int,
+    stability_ari: float,
 ) -> list[str]:
     """Build post-processing warnings for the pipeline result.
 
-    Two failure modes are surfaced:
+    Three failure modes are surfaced:
 
     - **All tracks unclassified** — if the collapse step routed every
       track to ``-1``, no real playlists were produced. The user
       probably wants a lower ``min_playlist_size`` or a different
       ``method``.
     - **Dominant cluster** — any cluster holding more than ``max_share``
-      of the library is flagged. The plan deliberately does not
+      of the library is flagged. We deliberately do not
       auto-split (that would re-introduce algorithm choice); we surface
       the problem and let the user re-run with a larger ``k`` or
       ``method='hdbscan'``.
+    - **Unstable partition** — if ``stability_ari`` (agreement between
+      the chosen fit and a second fit with a different seed) drops below
+      ``_STABILITY_ARI_THRESHOLD``, the clustering is sensitive to the
+      random seed and the playlists should be read with caution.
     """
     total = len(final_labels)
     if total == 0:
@@ -253,6 +311,13 @@ def _post_processing_warnings(
                 f"max_playlist_share={max_share:.0%} threshold. Consider "
                 f"a larger k or method='hdbscan'."
             )
+    if stability_ari < _STABILITY_ARI_THRESHOLD:
+        warnings.append(
+            f"Unstable partition: stability_ari={stability_ari:.2f} is "
+            f"below {_STABILITY_ARI_THRESHOLD:.1f}, so the clusters shift "
+            "noticeably between random seeds. Treat the playlists as "
+            "tentative, or try a different k_range or method."
+        )
     return warnings
 
 
@@ -345,7 +410,9 @@ def _build_diagnostics(
         random_state=random_state,
         n_jobs=1,
     )
-    proj_arr = reducer.fit_transform(X.to_numpy())
+    # Serialise the numba-backed fit; see _UMAP_LOCK for why.
+    with _UMAP_LOCK:
+        proj_arr = reducer.fit_transform(X.to_numpy())
     projection_2d = pd.DataFrame(proj_arr, columns=["dim1", "dim2"])
 
     # Cluster × feature heatmap. Real clusters come from describe_clusters'
@@ -367,7 +434,7 @@ def _build_diagnostics(
         heatmap_rows, index=final_ids, columns=list(FEATURE_COLUMNS)
     )
 
-    # 3-D PCA toggle (plan §6.2). Reuses the PCA fit above so the 3-D
+    # 3-D PCA toggle. Reuses the PCA fit above so the 3-D
     # coordinates share the axes the canonical-ordering tiebreak uses.
     projection_3d: pd.DataFrame | None
     if n_components >= 3:
@@ -399,27 +466,53 @@ def cluster(
 ) -> ClusterPipelineResult:
     """Cluster ``features_df`` and produce playlist-ready output.
 
-    Wraps preprocessing, GMM fitting, canonical cluster ordering, and
-    playlist-shape post-processing. Soft-assignment posteriors and
-    quality diagnostics travel along on the returned ``clustering``
-    field; the ``tracks`` and ``descriptions`` frames are the
-    consumer-facing artefacts.
+    Wraps preprocessing, fitting the selected clustering algorithm, canonical
+    cluster ordering, and playlist-shape post-processing. Soft-assignment
+    posteriors and quality diagnostics travel along on the returned
+    ``clustering`` field; the ``tracks`` and ``descriptions`` frames are
+    the consumer-facing artefacts.
 
     Args:
         features_df: A features frame as produced by
             :func:`playlistsmith.features.extract`.
-        method: ``"gmm"`` (default; the only currently implemented
-            method), ``"kmeans"`` or ``"hdbscan"`` (both planned, see
-            plan Section 8 step 6 — raise ``NotImplementedError`` for
-            now). Other strings raise ``ValueError``.
+        method: ``"gmm"`` (default), ``"kmeans"`` or ``"hdbscan"``.
+            Other strings raise ``ValueError``.
         random_state: Seed threaded through preprocessing-independent
             stochastic steps (the GMM fit and its stability re-fit).
-        min_playlist_size: Clusters with fewer than this many tracks
-            are collapsed into the Unclassified bucket (cluster id
-            ``-1``). Defaults to ``5`` per plan Section 5.
+        min_playlist_size: Post-processing floor applied to *every*
+            method, *after* clustering finishes: any cluster with fewer
+            than this many tracks is collapsed wholesale into the
+            Unclassified bucket (cluster id ``-1``). It only thresholds
+            and relabels — it never reshapes the clusters it keeps.
+            Governs output usability ("how small a playlist is too small
+            to bother exporting"), as opposed to
+            ``hdbscan_min_cluster_size``, which governs cluster discovery
+            inside the HDBSCAN fit. For an HDBSCAN run both apply in
+            sequence, so the effective floor on a surviving playlist is
+            the larger of the two. Defaults to ``5``.
         max_playlist_share: If any cluster holds more than this share
             of the library, a warning is emitted (no auto-split).
         k_range: Candidate ``k`` values for GMM model selection.
+        hdbscan_min_cluster_size: Smallest group of tracks HDBSCAN is
+            allowed to call a cluster (``method="hdbscan"`` only). Unlike
+            ``min_playlist_size``, this acts *during* the fit and governs
+            cluster discovery: it shapes which groups HDBSCAN forms in the
+            first place (raising it changes which merges happen, so the
+            surviving clusters can be reshaped, not just pruned). ``None``
+            (the default) uses ``max(5, n_tracks // 50)``. Raise it for
+            fewer, larger playlists and more Unclassified outliers; lower
+            it to surface smaller niches. Ignored by the GMM and K-means
+            methods, which take a cluster *count* via ``k_range`` instead.
+        hdbscan_min_samples: HDBSCAN's "anti-noise shield" — the number
+            of close neighbours a track must have before it counts as a
+            *core point* that can seed a cluster (``method="hdbscan"``
+            only). Think of it as how big a crowd a track needs around it
+            to be allowed to start a playlist: higher values make the
+            algorithm more conservative, so more loosely-grouped tracks are
+            left as noise and routed to the Unclassified bucket; lower
+            values are more permissive and produce fewer outliers. ``None``
+            (the default) falls back to ``hdbscan_min_cluster_size``.
+            Ignored by the GMM and K-means methods.
 
     Returns:
         A :class:`ClusterPipelineResult` with per-track labels, per-
@@ -429,19 +522,39 @@ def cluster(
     Raises:
         ValueError: If ``method`` is not one of ``{"gmm", "kmeans",
             "hdbscan"}``.
-        NotImplementedError: If ``method`` is recognised but its
-            implementation is not yet wired up (currently ``"kmeans"``
-            and ``"hdbscan"``).
+
+    Examples:
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from playlistsmith.cluster import cluster
+        >>> # Synthesise two obvious groups so the example needs no network.
+        >>> cols = ["acousticness", "danceability", "energy", "instrumentalness",
+        ...         "liveness", "loudness", "speechiness", "tempo", "valence"]
+        >>> sd = [0.02, 0.02, 0.02, 0.02, 0.02, 1.0, 0.02, 3.0, 0.02]
+        >>> mellow = [0.88, 0.30, 0.20, 0.40, 0.15, -17.0, 0.05, 85.0, 0.25]
+        >>> upbeat = [0.12, 0.80, 0.90, 0.40, 0.15, -6.0, 0.05, 128.0, 0.75]
+        >>> rng = np.random.default_rng(5)
+        >>> values = np.vstack([rng.normal(mellow, sd, (15, 9)),
+        ...                     rng.normal(upbeat, sd, (15, 9))])
+        >>> features = pd.DataFrame(values, columns=cols)
+        >>> features.insert(0, "artist", "Various")
+        >>> features.insert(0, "title", [f"Track {i}" for i in range(30)])
+        >>> features.insert(0, "spotify_id", [f"id{i:02d}" for i in range(30)])
+        >>> result = cluster(features, k_range=range(2, 6))
+        >>> result.descriptions[["cluster", "size", "cluster_summary"]]
+           cluster  size cluster_summary
+        0        0    15     low valence
+        1        1    15    high valence
+        >>> result.tracks.head(3)
+          spotify_id    title   artist  cluster cluster_summary
+        0       id00  Track 0  Various        0     low valence
+        1       id01  Track 1  Various        0     low valence
+        2       id02  Track 2  Various        0     low valence
     """
     if method not in _SUPPORTED_METHODS:
         raise ValueError(
             f"Unknown method {method!r}; supported methods are "
             f"{list(_SUPPORTED_METHODS)!r}."
-        )
-    if method not in _IMPLEMENTED_METHODS:
-        raise NotImplementedError(
-            f"method={method!r} is planned but not yet implemented "
-            "(see plan Section 8 step 6)."
         )
 
     X, index, _scaler, transform_log = prepare_matrix(features_df)
@@ -453,7 +566,7 @@ def cluster(
         mcs = (
             hdbscan_min_cluster_size
             if hdbscan_min_cluster_size is not None
-            else max(5, len(X) // 50)  # plan §3 default
+            else max(5, len(X) // 50)  # default
         )
         raw = fit_hdbscan(
             X, min_cluster_size=mcs, min_samples=hdbscan_min_samples
@@ -462,7 +575,10 @@ def cluster(
 
     final_labels = _collapse_small_clusters(ordered.labels, min_playlist_size)
     warnings = _post_processing_warnings(
-        final_labels, max_playlist_share, min_playlist_size
+        final_labels,
+        max_playlist_share,
+        min_playlist_size,
+        ordered.stability_ari,
     )
 
     raw_descriptions = describe_clusters(ordered, X)

@@ -38,7 +38,12 @@ _HELP_MIN_PLAYLIST_SIZE = (
     "Smallest size a final cluster is allowed to keep. Clusters smaller "
     "than this are collapsed into the **Unclassified** bucket (cluster "
     "-1) so you don't end up with two-track playlists. Raise it to force "
-    "larger, fewer playlists; lower it to keep small niche groups."
+    "larger, fewer playlists; lower it to keep small niche groups.\n\n"
+    "Applies to **every** method, *after* clustering finishes — it only "
+    "drops clusters that are too small, it never reshapes the ones it "
+    "keeps. (Contrast `hdbscan_min_cluster_size`, which shapes which "
+    "clusters form *during* the HDBSCAN fit. With HDBSCAN both apply, so "
+    "the smallest surviving playlist is the larger of the two.)"
 )
 _HELP_MAX_PLAYLIST_SHARE = (
     "Maximum share of the library any one cluster is allowed to hold "
@@ -50,18 +55,28 @@ _HELP_K_RANGE = (
     "Range of candidate cluster counts to evaluate. GMM picks the best k "
     "by BIC inside this range; K-means picks by silhouette. Wider range "
     "= more candidates evaluated (slower); narrower = faster but you "
-    "might miss the best k."
+    "might miss the best k. " "One value can be selected by dragging the "
+    "knobs on top of each other."
 )
 _HELP_HDBSCAN_MIN_CLUSTER_SIZE = (
     "Smallest group of tracks HDBSCAN is allowed to call a cluster. "
     "Raise it to get fewer, larger clusters and more Unclassified "
     "outliers; lower it to discover smaller niches at the cost of more "
-    "fragmentation."
+    "fragmentation.\n\n"
+    "Acts *during* the fit and shapes which clusters form in the first "
+    "place — not just whether small ones survive. (Contrast "
+    "`min_playlist_size`, the after-the-fit floor that applies to every "
+    "method. With HDBSCAN both apply, so the smallest surviving playlist "
+    "is the larger of the two.)"
 )
 _HELP_HDBSCAN_MIN_SAMPLES = (
-    "How conservative HDBSCAN is about declaring core points. Higher "
-    "values produce more outliers (Unclassified) and more conservative "
-    "clusters. 0 means \"use the library default\" (= min_cluster_size)."
+    "Think of this as an **anti-noise shield**: how many close neighbours "
+    "a track needs around it before it's allowed to help start a cluster "
+    "(a \"core point\"). Higher values mean a track needs a bigger crowd "
+    "nearby, so HDBSCAN is more conservative — more loosely-grouped tracks "
+    "are left as noise and routed to **Unclassified**. Lower values are "
+    "more permissive and produce fewer outliers. 0 means \"use the library "
+    "default\" (= min_cluster_size)."
 )
 
 
@@ -72,7 +87,7 @@ def _format_method(method_id: str) -> str:
 
 def _reset_cluster_state() -> None:
     """Clear the cluster + export slots — e.g. after changing method."""
-    for key in (KEYS.cluster_result, KEYS.export_paths):
+    for key in (KEYS.cluster_result, KEYS.cluster_params, KEYS.export_paths):
         if key in st.session_state:
             del st.session_state[key]
 
@@ -146,7 +161,7 @@ def _render_quality_panel(result: "ps.ClusterPipelineResult") -> None:
         heatmap.style.background_gradient(
             cmap="coolwarm", axis=None, vmin=-2, vmax=2
         ),
-        use_container_width=True,
+        width='stretch',
         height=int(38 * (len(heatmap) + 1) + 8),
     )
 
@@ -198,6 +213,17 @@ def render() -> None:
 
     params = _render_method_params(method, n_tracks=len(features_df))
 
+    # Snapshot of every knob feeding the run. Stored alongside the result so
+    # we can tell, on later reruns, whether the user has since moved a slider
+    # and the displayed result is now stale. ``k_range`` is a ``range``, which
+    # compares by value, so equality on this dict is exact.
+    current_params = {
+        "method": method,
+        "min_playlist_size": min_playlist_size,
+        "max_playlist_share": max_playlist_share,
+        **params,
+    }
+
     if st.button("Cluster", type="primary"):
         with st.spinner(f"Clustering with {_format_method(method)}…"):
             try:
@@ -213,11 +239,18 @@ def render() -> None:
                 st.error(f"Clustering failed: {exc}")
                 return
         st.session_state[KEYS.cluster_result] = result
+        st.session_state[KEYS.cluster_params] = current_params
         if KEYS.export_paths in st.session_state:
             del st.session_state[KEYS.export_paths]
 
     result = st.session_state.get(KEYS.cluster_result)
     if result is None:
         return
+
+    if st.session_state.get(KEYS.cluster_params) != current_params:
+        st.warning(
+            "⚠️ Hyperparameters have changed since the results were "
+            "computed. Press **Cluster** again to update the results below."
+        )
 
     _render_quality_panel(result)

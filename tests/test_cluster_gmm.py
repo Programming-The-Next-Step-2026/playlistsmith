@@ -1,6 +1,6 @@
 """Tests for :func:`playlistsmith.cluster.algorithms.fit_gmm`.
 
-The GMM fitter is the project-default clusterer (per ``CLAUDE.md``). It
+The GMM fitter is the project-default clustering algorithm. It
 sweeps ``k`` over a user-supplied range on a transformed-and-scaled
 matrix, picks ``k`` by BIC with an ICL cross-check, refits, and packages
 labels, posteriors and quality metrics into a
@@ -20,7 +20,9 @@ import pandas as pd
 import pytest
 
 from playlistsmith.cluster.algorithms import (
+    _DELTA_BIC_THRESHOLD,
     ClusteringResult,
+    _choose_k,
     fit_gmm,
 )
 from playlistsmith.features.reccobeats import FEATURE_COLUMNS
@@ -32,7 +34,7 @@ def _three_blob_matrix(
     """Three well-separated Gaussian blobs in the nine-feature space.
 
     Centres are placed far enough apart (`±5σ`) that any reasonable
-    clusterer should recover ``k = 3``. Returned as a DataFrame with
+    clustering algorithm should recover ``k = 3``. Returned as a DataFrame with
     the canonical :data:`FEATURE_COLUMNS` so it matches the modelling
     matrix that :func:`prepare_matrix` would produce.
     """
@@ -68,7 +70,7 @@ def test_fit_gmm_returns_clustering_result_dataclass() -> None:
 
 
 def test_clustering_result_fields_match_plan_contract() -> None:
-    """Every field listed in plan Section 1 is present and populated."""
+    """Every field is present and populated."""
     X = _three_blob_matrix()
 
     result = fit_gmm(X, k_range=range(2, 6), random_state=0)
@@ -84,7 +86,7 @@ def test_clustering_result_fields_match_plan_contract() -> None:
     assert isinstance(result.feature_means_per_cluster, pd.DataFrame)
     assert isinstance(result.stability_ari, float)
     assert isinstance(result.random_state, int)
-    # Added for small-library-fallback transparency (Section 1 step 5).
+    # Added for small-library-fallback transparency.
     assert isinstance(result.covariance_type, str)
 
 
@@ -221,7 +223,7 @@ def test_random_state_is_recorded_on_result() -> None:
 
 def test_small_library_falls_back_to_diag_covariance() -> None:
     """Below ~50 tracks, full covariance is under-determined; the fitter
-    auto-falls back to ``covariance_type='diag'`` (plan Section 1 step 5)."""
+    auto-falls back to ``covariance_type='diag'``."""
     X = _three_blob_matrix(per_blob=10, seed=0)  # 30 rows total
     assert len(X) < 50
 
@@ -271,3 +273,61 @@ def test_empty_matrix_raises_value_error() -> None:
 
     with pytest.raises(ValueError):
         fit_gmm(empty, k_range=range(2, 4), random_state=0)
+
+
+# --- _choose_k: BIC-primary with an ICL cross-check ---------------------
+
+
+def test_choose_k_returns_bic_argmin_when_icl_agrees() -> None:
+    """When BIC strongly favours its minimum and ICL agrees, that ``k``
+    wins.
+
+    BIC drops sharply through k=4 (each step > 10, so the walk-down
+    stays at the argmin), and ICL — always ≥ BIC by construction —
+    shares the argmin, so both rules point at k=4.
+    """
+    bic = {2: 200.0, 3: 100.0, 4: 52.0}
+    icl = {2: 200.0, 3: 101.0, 4: 53.0}
+
+    assert _choose_k(bic, icl) == 4
+
+
+def test_choose_k_walkdown_to_simpler_model_when_icl_concurs() -> None:
+    """The BIC argmin is rejected for a simpler ``k`` when its
+    improvement is not "strong" (ΔBIC ≤ 10) and ICL also prefers the
+    simpler model."""
+    # argmin is k=4, but 3→4 (1.0) and 2→3 (5.0) are both ≤ 10, so the
+    # walk-down lands on k=2. ICL's entropy penalty grows with k, so its
+    # argmin is also k=2 — no cross-check override.
+    bic = {2: 100.0, 3: 95.0, 4: 94.0}
+    icl = {2: 100.0, 3: 105.0, 4: 108.0}
+
+    assert _choose_k(bic, icl) == 2
+
+
+def test_choose_k_icl_overrides_when_bic_evidence_is_weak() -> None:
+    """ICL wins when BIC does not strongly prefer its own pick.
+
+    The BIC walk-down picks k=2 (3→4 and 2→3 deltas are within the
+    threshold), but ICL's argmin is k=3 and BIC's gap between k=3 and
+    k=2 is only 5.0 ≤ 10, so the cross-check defers to ICL.
+    """
+    bic = {2: 100.0, 3: 95.0, 4: 94.0}
+    icl = {2: 105.0, 3: 97.0, 4: 124.0}
+
+    assert _choose_k(bic, icl) == 3
+
+
+def test_choose_k_keeps_bic_pick_when_evidence_is_strong() -> None:
+    """ICL is ignored when BIC strongly favours its own pick (ΔBIC > 10).
+
+    BIC drops sharply at k=3 (argmin; the walk-down stays there because
+    2→3 = 50 > 10). ICL prefers k=2, but BIC's gap between the ICL pick
+    and the BIC pick is 50 > 10, so the BIC pick stands.
+    """
+    bic = {2: 100.0, 3: 50.0, 4: 60.0}
+    icl = {2: 100.0, 3: 110.0, 4: 115.0}
+
+    assert _choose_k(bic, icl) == 3
+    # Sanity: the override boundary is the documented threshold.
+    assert _DELTA_BIC_THRESHOLD == 10.0

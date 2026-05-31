@@ -23,10 +23,29 @@ def render() -> None:
 
     st.header("2. Extract features")
     st.caption(
-        "Look up audio features for each track via ReccoBeats "
+        "Look up audio features for each track via [ReccoBeats](https://reccobeats.com/) "
         "(`precomputed` mode). Tracks ReccoBeats does not know are "
         "dropped and listed below."
     )
+
+    with st.expander("Which features are extracted?", expanded=False):
+        st.markdown(
+            "Each resolved track gets these nine precomputed audio features:\n"
+            "\n"
+            "- `acousticness`\n"
+            "- `danceability`\n"
+            "- `energy`\n"
+            "- `instrumentalness`\n"
+            "- `liveness`\n"
+            "- `loudness`\n"
+            "- `speechiness`\n"
+            "- `tempo`\n"
+            "- `valence`\n"
+            "\n"
+            "See the [ReccoBeats audio features documentation]"
+            "(https://reccobeats.com/docs/documentation/Analysis/audio-features-extraction) "
+            "for an explanation of these features."
+        )
 
     already_extracted = st.session_state.get(KEYS.features_df) is not None
     button_label = "Re-extract features" if already_extracted else "Extract features"
@@ -42,8 +61,10 @@ def render() -> None:
                 return
         st.session_state[KEYS.features_df] = features_df
         st.session_state[KEYS.coverage] = coverage
-        # Invalidate downstream stages.
-        for key in (KEYS.cluster_result, KEYS.export_paths):
+        # Invalidate downstream stages. ``cluster_params`` is the snapshot
+        # the cluster stage compares against to flag stale results, so it
+        # must be cleared with ``cluster_result`` — not left dangling.
+        for key in (KEYS.cluster_result, KEYS.cluster_params, KEYS.export_paths):
             if key in st.session_state:
                 del st.session_state[key]
 
@@ -63,7 +84,7 @@ def render() -> None:
         with st.expander(
             f"Dropped tracks ({len(coverage.dropped_tracks)})", expanded=False
         ):
-            st.dataframe(coverage.dropped_tracks, use_container_width=True)
+            st.dataframe(coverage.dropped_tracks, width='stretch')
 
     if len(features_df) == 0:
         st.info(

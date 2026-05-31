@@ -54,8 +54,8 @@ def _sidebar() -> None:
             "stays so future modes drop in without UI churn.",
         )
 
-        if st.button("Reset session", use_container_width=True):
-            reset_pipeline_state(st.session_state)
+        if st.button("Reset session", width='stretch'):
+            reset_pipeline_state(st.session_state, clear_upload=True)
             st.rerun()
 
 

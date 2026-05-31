@@ -8,5 +8,6 @@ cluster after the pipeline runs.
 
 from playlistsmith.io import playlist_export
 from playlistsmith.io.csv_loader import TrackLibrary
+from playlistsmith.io.playlist_export import write_cluster_csvs
 
-__all__ = ["TrackLibrary", "playlist_export"]
+__all__ = ["TrackLibrary", "playlist_export", "write_cluster_csvs"]

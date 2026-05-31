@@ -73,6 +73,15 @@ def validate_name(name: str) -> bool:
 
     Returns:
         ``True`` if the name is safe to use, ``False`` otherwise.
+
+    Examples:
+        >>> from playlistsmith.io.playlist_export import validate_name
+        >>> validate_name("Late Night Drive")
+        True
+        >>> validate_name("AC/DC mix")  # path separator is rejected
+        False
+        >>> validate_name("   ")  # empty after stripping
+        False
     """
     if not isinstance(name, str):
         return False
@@ -109,8 +118,8 @@ def _resolve_name(
 ) -> str:
     """Look up the filename stem for ``cluster_id``.
 
-    Falls back to ``cluster_<id>`` when ``naming`` is ``None`` or does
-    not have an entry for this cluster.
+    Falls back to ``cluster_<id>`` when ``naming`` is ``None``, has no
+    entry for this cluster, or maps the cluster to an empty name.
     """
     default = f"cluster_{cluster_id}"
     if naming is None:
@@ -119,11 +128,30 @@ def _resolve_name(
         value = naming(cluster_id)
         return value if value else default
     if isinstance(naming, Mapping):
-        return naming.get(cluster_id, default)
+        value = naming.get(cluster_id, default)
+        return value if value else default
     raise TypeError(
         "`naming` must be None, a Mapping[int, str], or Callable[[int], "
         f"str]; got {type(naming).__name__}."
     )
+
+
+def _unclassified_stem(
+    naming: Mapping[int, str] | Callable[[int], str] | None,
+) -> str:
+    """Return the filename stem for the Unclassified bucket.
+
+    A user can rename the bucket like any other cluster: a callable is
+    always consulted, and a Mapping is consulted only if it has an entry
+    for the unclassified label. Otherwise we fall back to the default
+    ``Unclassified`` stem rather than ``cluster_-1``.
+    """
+    user_named = callable(naming) or (
+        isinstance(naming, Mapping) and _UNCLASSIFIED_LABEL in naming
+    )
+    if user_named:
+        return _resolve_name(_UNCLASSIFIED_LABEL, naming)
+    return UNCLASSIFIED_FILENAME[: -len(".csv")]
 
 
 def _build_export_frame(
@@ -231,6 +259,22 @@ def write_cluster_csvs(
             another playlist name.
         TypeError: If ``result`` is neither a DataFrame nor an object
             with a ``.tracks`` DataFrame attribute.
+
+    Examples:
+        Given a ``result`` from :func:`playlistsmith.cluster.cluster`
+        (see its example for how ``features`` is built):
+
+        >>> import tempfile
+        >>> import pandas as pd
+        >>> from playlistsmith.cluster import cluster
+        >>> from playlistsmith.io import write_cluster_csvs
+        >>> result = cluster(features, k_range=range(2, 6))
+        >>> tmp = tempfile.mkdtemp()
+        >>> paths = write_cluster_csvs(result, tmp, naming={0: "Mellow", 1: "Upbeat"})
+        >>> [p.name for p in paths]
+        ['Mellow.csv', 'Upbeat.csv']
+        >>> pd.read_csv(paths[0]).columns.tolist()
+        ['Track URI', 'Track Name', 'Artist Name(s)', 'Cluster', 'Cluster Summary']
     """
     tracks = _tracks_frame(result)
     output_dir = Path(output_dir)
@@ -245,11 +289,7 @@ def write_cluster_csvs(
         cid: _resolve_name(cid, naming) for cid in real_ids
     }
     if include_unclassified and (tracks["cluster"] == _UNCLASSIFIED_LABEL).any():
-        resolved_names[_UNCLASSIFIED_LABEL] = _resolve_name(
-            _UNCLASSIFIED_LABEL, naming
-        ) if (
-            callable(naming) or (isinstance(naming, Mapping) and _UNCLASSIFIED_LABEL in naming)
-        ) else UNCLASSIFIED_FILENAME[:-len(".csv")]
+        resolved_names[_UNCLASSIFIED_LABEL] = _unclassified_stem(naming)
     _validate_names(resolved_names)
 
     written: list[Path] = []

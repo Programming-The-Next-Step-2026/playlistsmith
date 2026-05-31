@@ -14,7 +14,7 @@ heatmaps and selection diagnostics. The artefacts live on a
 - ``zprofile_heatmap`` — ``cluster × feature`` z-profile frame
   consumed by heatmap viz;
 - BIC / ICL / silhouette / inertia / CH curves are already on the
-  raw :class:`ClusteringResult` (Sections 1 and 2).
+  raw :class:`ClusteringResult`.
 
 These tests pin shapes and row-alignment with the tracks frame.
 """
