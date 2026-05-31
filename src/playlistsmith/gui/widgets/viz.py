@@ -66,7 +66,7 @@ def _render_2d(result) -> None:  # type: ignore[no-untyped-def]
         yaxis_title="UMAP dim 2",
         legend_title="",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def _render_3d(result) -> None:  # type: ignore[no-untyped-def]
@@ -100,7 +100,7 @@ def _render_3d(result) -> None:  # type: ignore[no-untyped-def]
         ),
         legend_title="",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def render() -> None:

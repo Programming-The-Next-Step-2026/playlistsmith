@@ -73,7 +73,7 @@ def _format_method(method_id: str) -> str:
 
 def _reset_cluster_state() -> None:
     """Clear the cluster + export slots — e.g. after changing method."""
-    for key in (KEYS.cluster_result, KEYS.export_paths):
+    for key in (KEYS.cluster_result, KEYS.cluster_params, KEYS.export_paths):
         if key in st.session_state:
             del st.session_state[key]
 
@@ -147,7 +147,7 @@ def _render_quality_panel(result: "ps.ClusterPipelineResult") -> None:
         heatmap.style.background_gradient(
             cmap="coolwarm", axis=None, vmin=-2, vmax=2
         ),
-        use_container_width=True,
+        width='stretch',
         height=int(38 * (len(heatmap) + 1) + 8),
     )
 
@@ -199,6 +199,17 @@ def render() -> None:
 
     params = _render_method_params(method, n_tracks=len(features_df))
 
+    # Snapshot of every knob feeding the run. Stored alongside the result so
+    # we can tell, on later reruns, whether the user has since moved a slider
+    # and the displayed result is now stale. ``k_range`` is a ``range``, which
+    # compares by value, so equality on this dict is exact.
+    current_params = {
+        "method": method,
+        "min_playlist_size": min_playlist_size,
+        "max_playlist_share": max_playlist_share,
+        **params,
+    }
+
     if st.button("Cluster", type="primary"):
         with st.spinner(f"Clustering with {_format_method(method)}…"):
             try:
@@ -214,11 +225,18 @@ def render() -> None:
                 st.error(f"Clustering failed: {exc}")
                 return
         st.session_state[KEYS.cluster_result] = result
+        st.session_state[KEYS.cluster_params] = current_params
         if KEYS.export_paths in st.session_state:
             del st.session_state[KEYS.export_paths]
 
     result = st.session_state.get(KEYS.cluster_result)
     if result is None:
         return
+
+    if st.session_state.get(KEYS.cluster_params) != current_params:
+        st.warning(
+            "⚠️ Hyperparameters have changed since the results were "
+            "computed. Press **Cluster** again to update the results below."
+        )
 
     _render_quality_panel(result)

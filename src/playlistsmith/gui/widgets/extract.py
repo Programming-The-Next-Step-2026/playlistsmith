@@ -42,8 +42,10 @@ def render() -> None:
                 return
         st.session_state[KEYS.features_df] = features_df
         st.session_state[KEYS.coverage] = coverage
-        # Invalidate downstream stages.
-        for key in (KEYS.cluster_result, KEYS.export_paths):
+        # Invalidate downstream stages. ``cluster_params`` is the snapshot
+        # the cluster stage compares against to flag stale results, so it
+        # must be cleared with ``cluster_result`` — not left dangling.
+        for key in (KEYS.cluster_result, KEYS.cluster_params, KEYS.export_paths):
             if key in st.session_state:
                 del st.session_state[key]
 
@@ -63,7 +65,7 @@ def render() -> None:
         with st.expander(
             f"Dropped tracks ({len(coverage.dropped_tracks)})", expanded=False
         ):
-            st.dataframe(coverage.dropped_tracks, use_container_width=True)
+            st.dataframe(coverage.dropped_tracks, width='stretch')
 
     if len(features_df) == 0:
         st.info(

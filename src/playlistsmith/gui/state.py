@@ -30,6 +30,10 @@ class Keys:
     features_df: str = "features_df"
     coverage: str = "coverage"
     cluster_result: str = "cluster_result"
+    #: The hyperparameter values that produced :attr:`cluster_result`.
+    #: Compared against the live widget values so the cluster stage can
+    #: warn when the knobs have moved since the last run.
+    cluster_params: str = "cluster_params"
     export_paths: str = "export_paths"
     demo_mode: str = "demo_mode"
 
@@ -61,6 +65,7 @@ def reset_pipeline_state(  # type: ignore[no-untyped-def]
         KEYS.features_df,
         KEYS.coverage,
         KEYS.cluster_result,
+        KEYS.cluster_params,
         KEYS.export_paths,
         UPLOAD_IDENTITY_KEY,
     ):

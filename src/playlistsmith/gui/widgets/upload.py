@@ -109,4 +109,4 @@ def render() -> None:
         f"{len(library)} track(s) with a Spotify ID."
     )
     with st.expander("Preview tracklist (first 20 rows)", expanded=False):
-        st.dataframe(library.dataframe.head(20), use_container_width=True)
+        st.dataframe(library.dataframe.head(20), width='stretch')

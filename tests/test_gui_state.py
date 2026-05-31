@@ -22,6 +22,7 @@ def _populated_state() -> dict:
         KEYS.features_df: object(),
         KEYS.coverage: object(),
         KEYS.cluster_result: object(),
+        KEYS.cluster_params: {"method": "gmm"},
         KEYS.export_paths: ["a.csv"],
         KEYS.demo_mode: True,
         UPLOAD_IDENTITY_KEY: "upload:abc",
@@ -37,6 +38,7 @@ def test_reset_clears_pipeline_slots_but_keeps_demo_mode() -> None:
         KEYS.features_df,
         KEYS.coverage,
         KEYS.cluster_result,
+        KEYS.cluster_params,
         KEYS.export_paths,
         UPLOAD_IDENTITY_KEY,
     ):
