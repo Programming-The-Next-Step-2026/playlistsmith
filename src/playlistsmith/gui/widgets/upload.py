@@ -65,8 +65,8 @@ def render() -> None:
     # still-attached file: bumping it re-creates the uploader empty.
     nonce = st.session_state.get(UPLOAD_NONCE_KEY, 0)
     uploaded = st.file_uploader(
-        "Exportify CSV", 
-        type=["csv"], 
+        "Exportify CSV",
+        type=["csv"],
         key=f"uploader_{nonce}",
         accept_multiple_files=False,
     )

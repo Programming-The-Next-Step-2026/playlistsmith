@@ -161,7 +161,6 @@ class TrackLibrary:
         """
         return self._tracks.copy()
 
-    # TODO see if it might be nicer to just return head or tail
     def display(self, max_rows: int | None = 20) -> None:
         """Pretty-print the library to stdout.
 
@@ -183,17 +182,17 @@ class TrackLibrary:
         (the single supported way to obtain features) in ``precomputed``
         mode rather than calling internal feature modules directly. Tracks
         with no precomputed features are dropped and reported.
-        
+
         Args:
             mode: The feature extraction mode to use. See
                 :func:`playlistsmith.features.extract` for supported modes.
-        
+
         Returns:
             A ``(features_df, coverage)`` tuple: a feature DataFrame with
             one row per resolved track, and a
             :class:`~playlistsmith.features.CoverageReport` describing what
             was resolved and what was dropped.
-        
+
         Examples:
             >>> import playlistsmith as ps
             >>> tlib = ps.TrackLibrary("./tests/example_tracklist.csv")

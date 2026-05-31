@@ -132,8 +132,7 @@ def test_track_count_equals_preprocessing_survivor_count() -> None:
 
 
 def test_default_method_is_gmm() -> None:
-    """``CLAUDE.md``: prefer ``GaussianMixture``. Default ``method``
-    must be GMM, and the raw clustering result reflects that."""
+    """Default ``method`` must be GMM, and the raw clustering result reflects that."""
     features = _synthetic_features()
 
     out = cluster(features, random_state=0)

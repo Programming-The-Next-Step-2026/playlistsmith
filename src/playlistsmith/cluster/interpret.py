@@ -114,7 +114,7 @@ def describe_clusters(
     Args:
         result: The clustering outcome to interpret.
         X: The transformed-and-scaled modelling matrix that was fed to
-            the clusterer. Used to compute pairwise feature correlations
+            the clustering algorithm. Used to compute pairwise feature correlations
             for the dedup step.
 
     Returns:

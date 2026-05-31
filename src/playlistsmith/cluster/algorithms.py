@@ -1,6 +1,6 @@
 """Clustering algorithms for the playlistsmith pipeline.
 
-The default clusterer is a Gaussian Mixture Model. K-Means and HDBSCAN are offered as
+The default clustering algorithm is a Gaussian Mixture Model. K-Means and HDBSCAN are offered as
 alternatives. All three are exposed in the GUI method selector.
 
 Methods
@@ -69,7 +69,7 @@ class ClusteringResult:
     Attributes:
         labels: Hard cluster assignment per input row, shape ``(n,)``.
         posteriors: Soft assignment matrix, shape ``(n, k)``; rows sum
-            to 1. ``None`` for non-probabilistic clusterers (K-Means,
+            to 1. ``None`` for non-probabilistic clustering algorithms (K-Means,
             HDBSCAN).
         k: The number of clusters in the final fit.
         silhouette: Silhouette score of the final labels (in ``[-1, 1]``).
@@ -97,7 +97,7 @@ class ClusteringResult:
         calinski_harabasz_curve: ``{k: CH-index}`` across the K-Means
             sweep.
         noise_rate: Share of input rows labelled ``-1`` (HDBSCAN noise).
-            Zero for clusterers that assign every point.
+            Zero for clustering algorithms that assign every point.
 
     Examples:
         Produced by :func:`fit_gmm`, :func:`fit_kmeans` and
@@ -108,7 +108,7 @@ class ClusteringResult:
         2
         >>> fit.labels.shape
         (30,)
-        >>> fit.posteriors.shape  # (n_tracks, k); None for hard clusterers
+        >>> fit.posteriors.shape  # (n_tracks, k); None for hard clustering algorithms
         (30, 2)
         >>> fit.feature_means_per_cluster.shape  # (k, n_features)
         (2, 9)
@@ -434,7 +434,7 @@ def fit_kmeans(
         >>> fit = fit_kmeans(X, k_range=range(2, 6))
         >>> fit.k
         2
-        >>> fit.posteriors is None  # K-Means is a hard clusterer
+        >>> fit.posteriors is None  # K-Means is a hard clustering algorithm
         True
         >>> round(fit.silhouette, 3)
         0.567

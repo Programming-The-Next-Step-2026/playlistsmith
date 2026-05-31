@@ -1,6 +1,6 @@
 """Tests for :func:`playlistsmith.cluster.algorithms.fit_gmm`.
 
-The GMM fitter is the project-default clusterer (per ``CLAUDE.md``). It
+The GMM fitter is the project-default clustering algorithm. It
 sweeps ``k`` over a user-supplied range on a transformed-and-scaled
 matrix, picks ``k`` by BIC with an ICL cross-check, refits, and packages
 labels, posteriors and quality metrics into a
@@ -34,7 +34,7 @@ def _three_blob_matrix(
     """Three well-separated Gaussian blobs in the nine-feature space.
 
     Centres are placed far enough apart (`±5σ`) that any reasonable
-    clusterer should recover ``k = 3``. Returned as a DataFrame with
+    clustering algorithm should recover ``k = 3``. Returned as a DataFrame with
     the canonical :data:`FEATURE_COLUMNS` so it matches the modelling
     matrix that :func:`prepare_matrix` would produce.
     """

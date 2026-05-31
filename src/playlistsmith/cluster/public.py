@@ -189,7 +189,7 @@ def _canonical_order(
 
     Args:
         result: The raw clustering result.
-        X: The modelling matrix the clusterer saw, used to compute PC1
+        X: The modelling matrix the clustering algorithm saw, used to compute PC1
             of each cluster mean for tiebreaking.
 
     Returns:
@@ -448,16 +448,16 @@ def cluster(
 ) -> ClusterPipelineResult:
     """Cluster ``features_df`` and produce playlist-ready output.
 
-    Wraps preprocessing, GMM fitting, canonical cluster ordering, and
-    playlist-shape post-processing. Soft-assignment posteriors and
-    quality diagnostics travel along on the returned ``clustering``
-    field; the ``tracks`` and ``descriptions`` frames are the
-    consumer-facing artefacts.
+    Wraps preprocessing, fitting the selected clustering algorithm, canonical
+    cluster ordering, and playlist-shape post-processing. Soft-assignment
+    posteriors and quality diagnostics travel along on the returned
+    ``clustering`` field; the ``tracks`` and ``descriptions`` frames are
+    the consumer-facing artefacts.
 
     Args:
         features_df: A features frame as produced by
             :func:`playlistsmith.features.extract`.
-        method: ``"gmm"`` (default), ``"kmeans"`` or ``"hdbscan"``. 
+        method: ``"gmm"`` (default), ``"kmeans"`` or ``"hdbscan"``.
             Other strings raise ``ValueError``.
         random_state: Seed threaded through preprocessing-independent
             stochastic steps (the GMM fit and its stability re-fit).
